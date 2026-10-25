@@ -34,7 +34,8 @@ export interface RobotLook {
   body?: [string, string]
   trim?: string
   screen?: string
-  cheeks?: boolean
+  /** улыбка под глазами */
+  smile?: boolean
 }
 type Look = Required<RobotLook>
 
@@ -42,7 +43,7 @@ const VI: Look = {
   w: 160, h: 150, r: 46, taper: 0, bezel: [16, 18, 26], screenR: 32,
   ears: 'bar', earW: 16, earH: 44, earOut: 10, antenna: 'single', antennaLen: 18, antennaW: 5, bulb: 8,
   eyes: 'capsule', eyeW: 22, eyeH: 52, gap: 48, eyeDy: 0,
-  body: ['#3a3a3e', '#141416'], trim: '#2a2a2d', screen: '#09090a', cheeks: false,
+  body: ['#3a3a3e', '#141416'], trim: '#2a2a2d', screen: '#09090a', smile: false,
 }
 
 interface Props {
@@ -60,6 +61,12 @@ interface Props {
   /** Выходка от скуки прямо сейчас, не дожидаясь тишины (на /robots.html): каждый новый n — заново. */
   fidget?: { kind: Fidget; n: number }
   look?: RobotLook
+  /** Кукла (на /robots.html): настоящую мышь не замечает и сам выходки не выкидывает — двигается только по тому, что передали. */
+  puppet?: boolean
+  /** Ненастоящая мышь: точка на экране и когда она последний раз двигалась — смотрит на неё, как на мышь. */
+  pointer?: React.RefObject<{ x: number; y: number; at: number } | null>
+  /** Ненастоящая ладонь: где она по ширине головы (−1…1), null — убрали. Водят — гладят; рисуется курсором на макушке. */
+  hand?: React.RefObject<number | null>
 }
 
 /** Пружина тянется к цели, перелетает и успокаивается: движения складываются, а не обрываются. */
@@ -176,12 +183,12 @@ function brows(L: Look, G: Geo, depth: number) {
  * Толкнули — зажмуривается «> <», плюхается как желе, антенна пружинит, покачивается и косится на толкнувшего.
  * Толкают подряд — начинает злиться: веки хмурятся, на экране вспыхивает «💢», лампочка краснеет,
  * он упирается навстречу и чуть кипит. Ещё удар — оглушён (это решает тот, кто считает удары), лампочка горит красным.
- * Гладят — плавно водят курсором по голове: жмурится от удовольствия «^ ^», краснеют щёчки, ластится к руке,
+ * Гладят — плавно водят курсором по голове: жмурится от удовольствия «^ ^», ластится к руке,
  * антенна гнётся под ладонью, чуть мурчит и пускает сердечки; злость проходит.
  * Ничего не происходит — время от времени что-нибудь выкидывает от скуки (lib/fidgets.ts): подмигивает,
  * напевает, икает, клюёт носом, чихает, ловит взглядом муху, перезагружается. Редкие выпадают реже.
  */
-export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, look }: Props) {
+export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, look, puppet = false, pointer, hand }: Props) {
   const L = useMemo<Look>(() => ({ ...VI, ...look }), [look])
   const G = useMemo(() => geometry(L), [L])
   const spirals = useMemo(() => G.eyeX.map((cx) => spiral(cx, G.ey)), [G])
@@ -193,13 +200,13 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
   const lids = useRef<SVGGElement>(null)
   const brow = useRef<SVGPathElement>(null)
   const vein = useRef<SVGGElement>(null)
-  const blush = useRef<SVGGElement>(null)
   const hearts = useRef<SVGGElement>(null)
   const bar = useRef<SVGGElement>(null)
   const barFill = useRef<SVGRectElement>(null)
   const fly = useRef<SVGGElement>(null)
   const wings = useRef<SVGGElement>(null)
   const sprites = useRef<SVGGElement>(null)
+  const palm = useRef<SVGGElement>(null)
   const moodRef = useRef(mood)
   useEffect(() => { moodRef.current = mood }, [mood])
   const pushRef = useRef(push)
@@ -231,6 +238,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
     // гладят: сколько «удовольствия» накопилось, где ладонь по ширине головы (−1…1) и куда едет
     let pet = 0, petting = false, petAmt = 0, petX = 0, petVx = 0
     let prevMove: { x: number; y: number; t: number } | null = null
+    let prevHand: number | null = null
     const flying: ({ t0: number; x: number } | null)[] = [null, null, null]
     let nextHeart = 0
     // моргают вразнобой, даже когда роботов много
@@ -273,6 +281,16 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       bits[k] = { kind, t0: t, size, ...at }
     }
 
+    // провели по голове: d — сколько проехали, dx — из них вбок (в ширинах головы), x — где рука (−1…1)
+    const stroke = (d: number, dx: number, dt: number, x: number) => {
+      // скорость — в «головах в секунду»: у маленького и большого робота одинаково
+      if (dt > 0 && dt < 0.2 && d / dt < 9) {
+        pet = Math.min(1.8, pet + d * 0.6)
+        petVx += (dx / dt - petVx) * 0.3
+      }
+      petX = x
+    }
+
     const onMove = (e: PointerEvent) => {
       const now = performance.now()
       mouse = { x: e.clientX, y: e.clientY, at: now }
@@ -288,18 +306,12 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       const bottom = r.top + (BOTTOM - vb.y) * k
       const inside = e.clientX > left - 4 && e.clientX < left + width + 4 && e.clientY > top - 12 && e.clientY < bottom
       if (inside && prevMove) {
-        const dt = (now - prevMove.t) / 1000
         const d = Math.hypot(e.clientX - prevMove.x, e.clientY - prevMove.y)
-        // скорость — в «головах в секунду»: у маленького и большого робота одинаково
-        if (dt > 0 && dt < 0.2 && d / width / dt < 9) {
-          pet = Math.min(1.8, pet + (d / width) * 0.6)
-          petVx += ((e.clientX - prevMove.x) / dt / width - petVx) * 0.3
-        }
-        petX = clamp((e.clientX - left - width / 2) / (width / 2), -1, 1)
+        stroke(d / width, (e.clientX - prevMove.x) / width, (now - prevMove.t) / 1000, clamp((e.clientX - left - width / 2) / (width / 2), -1, 1))
       }
       prevMove = inside ? { x: e.clientX, y: e.clientY, t: now } : null
     }
-    window.addEventListener('pointermove', onMove)
+    if (!puppet) window.addEventListener('pointermove', onMove)
 
     const frame = (t: number) => {
       const dt = Math.min(0.033, (t - last) / 1000)
@@ -329,6 +341,13 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
         fid = null
       }
 
+      // ненастоящая ладонь гладит так же, как курсор
+      const h = hand?.current ?? null
+      if (h !== null && prevHand !== null) stroke(Math.abs(h - prevHand) / 2, (h - prevHand) / 2, dt, h)
+      prevHand = h
+      palm.current?.setAttribute('opacity', h === null ? '0' : '1')
+      if (h !== null) palm.current?.setAttribute('transform', `translate(${(110 + (h * L.w) / 2).toFixed(1)} ${G.y0 + 6})`)
+
       // гладят: накопилось — блаженствует; перестали — ещё чуть жмурится и отпускает
       pet = Math.max(0, pet - dt * 0.45)
       petVx *= Math.exp(-dt * 6)
@@ -347,12 +366,13 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
 
       // от скуки: ни мыши, ни текста, ни толчков, не гладят — время от времени что-нибудь выкидывает
       const caret = gaze?.current
+      const ptr = pointer?.current ?? mouse
       const fp = fidgetRef.current
       if (fp && fp.n !== lastFidget) {
         lastFidget = fp.n
         if (!calm) startFidget(fp.kind, t, true)
       }
-      const busy = (mouse && t - mouse.at < QUIET_MS) || (caret && caret.at > 0 && t - caret.at < QUIET_MS)
+      const busy = (ptr && t - ptr.at < QUIET_MS) || (caret && caret.at > 0 && t - caret.at < QUIET_MS)
       const quiet = m === 'idle' && !petting && petAmt < 0.05 && anger < 0.05 && t - lastHitAt > QUIET_MS && !busy
       // заговорили или гладят — выходка обрывается
       if (fid && (m !== 'idle' || petting)) fid = null
@@ -374,7 +394,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
             while (fid.beat < fid.beats.length && fid.beats[fid.beat].at < wake) fid.beat++
           } else if (!wake || f < wake) fid = null
         }
-      } else if (!fid && !calm && t - stillFrom > wait) startFidget(pickFidget(prevFid, t - idleFrom), t, false)
+      } else if (!fid && !calm && !puppet && t - stillFrom > wait) startFidget(pickFidget(prevFid, t - idleFrom), t, false)
       wasQuiet = quiet
       const P = fid ? FIDGETS[fid.kind].pose(t - fid.t0, { s: fid.s, perch, face: [110, G.ey] }) : REST
       if (fid) {
@@ -405,7 +425,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       }
 
       // куда смотреть
-      const look = caret ?? (mouse && t - mouse.at < 2500 ? mouse : null)
+      const look = caret ?? (ptr && t - ptr.at < 2500 ? ptr : null)
       let lean = 0
       if (m === 'dizzy' || t < ouchUntil) {
         tx = 0
@@ -546,8 +566,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
         b.style.fill = bulbFill
         b.style.opacity = glow
       })
-      // гладят — щёчки краснеют и всплывают сердечки
-      blush.current?.setAttribute('opacity', Math.max(L.cheeks ? 0.6 : 0, petAmt * 0.7, P.blush ?? 0).toFixed(3))
+      // гладят — всплывают сердечки
       if (petting && t > nextHeart && !calm) {
         const i = flying.findIndex((h) => !h)
         if (i >= 0) flying[i] = { t0: t, x: 110 + (Math.random() * 2 - 1) * L.w * 0.3 }
@@ -615,7 +634,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       cancelAnimationFrame(raf)
       window.removeEventListener('pointermove', onMove)
     }
-  }, [level, gaze, L, G])
+  }, [level, gaze, L, G, puppet, pointer, hand])
 
   const { x0, y0, topHalf, halfAt, bx, sy0, sh, ey, eyeX, earY, by } = G
   const tapered = L.taper > 0
@@ -707,11 +726,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
                 )}
               </g>
             </g>
-            {/* щёчки: краснеют, когда гладят (у варианта с румянцем — всегда) */}
-            <g ref={blush} opacity={L.cheeks ? 0.6 : 0} fill="#ff7aa6">
-              {eyeX.map((cx, k) => <ellipse key={cx} cx={cx + (k ? 1 : -1) * (L.eyeW / 2 + 6)} cy={ey + G.eyeH / 2 + 4} rx="9" ry="5" />)}
-            </g>
-            {L.cheeks && <path d={`M101 ${ey + G.eyeH / 2 + 8} q9 7 18 0`} fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" />}
+            {L.smile && <path d={`M101 ${ey + G.eyeH / 2 + 8} q9 7 18 0`} fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" />}
             {/* перезагрузка: полоска загрузки вместо глаз */}
             <g ref={bar} opacity="0" fill="#fff">
               <rect x={110 - G.barW / 2} y={ey - 5} width={G.barW} height="10" rx="5" opacity="0.2" />
@@ -736,6 +751,12 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       <g ref={hearts} fill="#ff6b9a">
         {[0, 1, 2].map((i) => <path key={i} d={HEART} opacity="0" />)}
       </g>
+      {/* ненастоящая ладонь — курсор на макушке */}
+      {hand && (
+        <g ref={palm} opacity="0">
+          <path d="M0 0V21L5.4 16.2L9 24L12.6 22.4L9.1 14.8H16.4Z" fill="#121212" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
+        </g>
+      )}
     </svg>
   )
 }

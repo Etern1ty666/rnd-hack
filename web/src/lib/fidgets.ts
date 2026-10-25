@@ -30,7 +30,6 @@ export interface Pose {
   /** глаза видны (0…1): гаснут на перезагрузке */
   on?: number
   shape?: 'happy' | 'ouch'
-  blush?: number
   /** лампочка: цвет и яркость */
   bulb?: string
   glow?: number
@@ -103,7 +102,7 @@ const ACHOO = 1400
 const GLITCH = ['var(--red)', 'var(--blue)', 'var(--yellow)', 'var(--green)']
 
 export const FIDGETS: Record<Fidget, Spec> = {
-  // смотрит на вас, подмигивает и чуть краснеет
+  // смотрит на вас и подмигивает
   wink: {
     ms: 1300,
     weight: 3,
@@ -116,7 +115,6 @@ export const FIDGETS: Record<Fidget, Spec> = {
         look: [0, 0],
         lean: s * 5 * hump(f, 0, 260, 850, 1250),
         eye: s < 0 ? [1 - shut * 0.9, other] : [other, 1 - shut * 0.9],
-        blush: 0.55 * hump(f, 280, 450, 850, 1250),
       }
     },
   },
@@ -149,7 +147,6 @@ export const FIDGETS: Record<Fidget, Spec> = {
       return {
         pop: 1 + kick * 0.28,
         look: [s * 10 * after, (1 - after) * (-3 - 6 * kick) + after * 4],
-        blush: 0.45 * hump(f, 2250, 2450, 2800, 3100),
       }
     },
   },
@@ -209,7 +206,6 @@ export const FIDGETS: Record<Fidget, Spec> = {
         shape: u < 330 ? 'ouch' : u < 1050 ? 'happy' : undefined,
         bulb: u < 220 ? 'var(--yellow)' : undefined,
         look: [0, 0],
-        blush: 0.3 * hump(u, 300, 450, 800, 1100),
       }
     },
   },
