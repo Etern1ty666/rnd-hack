@@ -33,6 +33,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* приближать нельзя: ни щипком, ни двойным тапом (остальное — lib/noZoom.ts) */
+* { touch-action: pan-x pan-y; }
 body {
   background: var(--page);
   color: var(--ink);
