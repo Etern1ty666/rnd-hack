@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { load, save } from '../lib/store'
+import { SECTIONS, type Section } from '../lib/sections'
 import { Icon } from './Icon'
 
 export const ALL = 'all'
@@ -34,6 +35,9 @@ interface Props {
   chats: Record<string, ChatMeta[]>
   /** Открытый чат; нет — открыт раздел или сводка. */
   open?: ChatRef
+  /** Открытый раздел из меню — подсвечен, как открытый чат. */
+  section?: Section
+  onSection: (s: Section) => void
   /** Закреплено (обычная колонка) или показано поверх по наведению — тогда кнопку в шапке не рисуем: она остаётся своя, на странице. */
   pinned?: boolean
   /** Кнопка в шапке: свернуть меню (на телефоне — закрыть выезжающее). */
@@ -55,12 +59,12 @@ type Menu = ChatRef & { view: 'main' | 'move'; sure: boolean }
 const PAGE = 20
 
 /**
- * Левая колонка, как у Claude: сверху кнопка «свернуть» и логотип, ниже «Новый чат» и история.
+ * Левая колонка, как у Claude: сверху кнопка «свернуть» и логотип, ниже «Новый чат», три раздела бизнеса и история.
  * Сначала чаты без группы, под ними группы по бизнесам. Группы сворачиваются; у группы при наведении — «+»:
  * новый чат прямо в ней. У чата при наведении — «⋯» с меню: переименовать, переместить в группу, удалить.
  * Чат можно и перетащить в другую группу. Подсвечен только открытый чат; при наведении — подсветка тусклее.
  */
-export function Sidebar({ items, current, chats, open, pinned = true, onCollapse, onNew, onOpen, onRename, onDelete, onMove, onBusy }: Props) {
+export function Sidebar({ items, current, chats, open, section, onSection, pinned = true, onCollapse, onNew, onOpen, onRename, onDelete, onMove, onBusy }: Props) {
   const [closed, setClosed] = useState<string[]>(() => load('nav:closed', []))
   useEffect(() => save('nav:closed', closed), [closed])
   // меню чата: чей, что показано (действия или «переместить в») и ждёт ли «удалить» подтверждения
@@ -261,6 +265,14 @@ export function Sidebar({ items, current, chats, open, pinned = true, onCollapse
         <button className="brand" onClick={() => onNew(FREE)} title="Новый чат" aria-label="Хватит? — новый чат">Хватит<i>?</i></button>
       </div>
       <button className="nav-new" onClick={() => onNew(FREE)}><Icon name="plus" size={20} /> Новый чат</button>
+      {SECTIONS.map((x) => (
+        <button
+          key={x.id} className={`nav-new nav-section ${section === x.id ? 'on' : ''}`} onClick={() => onSection(x.id)}
+          aria-current={section === x.id ? 'page' : undefined}
+        >
+          <Icon name={x.icon} size={20} /> {x.label}
+        </button>
+      ))}
 
       <div ref={scroller} className={`nav-scroll ${fade.top ? 'fade-top' : ''} ${fade.bottom ? 'fade-bottom' : ''}`} onScroll={edges}>
         <div className={`nav-free ${drop === FREE ? 'drop' : ''}`} {...target(FREE)}>

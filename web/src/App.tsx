@@ -20,6 +20,11 @@ import { Settings } from './components/Settings'
 import { Overview } from './components/Overview'
 import { AddBusiness } from './components/AddBusiness'
 import { ALL, FREE, Sidebar, type ChatMeta, type ChatRef } from './components/Sidebar'
+import { SECTIONS, type Section } from './lib/sections'
+import { ForecastPage } from './components/ForecastPage'
+import { PaymentsPage } from './components/PaymentsPage'
+import { OpsPage } from './components/OpsPage'
+import { REGIMES } from './lib/tax'
 import { BizCard } from './components/BizCard'
 import { ViChat, type ViCommand } from './components/ViChat'
 import { InfoPanel, type Focus } from './components/InfoPanel'
@@ -35,8 +40,12 @@ const DEMO: Record<string, CompanyData> = {
   C065: C065 as unknown as CompanyData,
 }
 
-/** Всё о бизнесе — в разговоре с Vi: разделы он показывает прямо в переписке. Отдельная страница — только новый бизнес. */
-type Page = 'chat' | 'newBusiness'
+/**
+ * Разговор с Vi — главное; остальные разделы он показывает прямо в переписке.
+ * Отдельные страницы — три раздела из меню (прогноз, платежи, операции) и новый бизнес.
+ */
+type Page = 'chat' | 'newBusiness' | Section
+const isSection = (p: Page): p is Section => SECTIONS.some((x) => x.id === p)
 
 // распознавание QR тяжёлое и нужно редко — грузим, когда открыли панель
 const QrPay = lazy(() => import('./components/QrPay').then((m) => ({ default: m.QrPay })))
@@ -164,6 +173,11 @@ export default function App() {
     setApplied(new Set())
     setFocus(null)
     go('chat')
+  }
+  // раздел — всегда про один бизнес: из сводки по всем открываем первый
+  const openSection = (p: Section) => {
+    if (cur === ALL) select(bizIds[0])
+    go(p)
   }
   // чат бизнеса открывает и сам бизнес; чат без группы — про бизнес, выбранный сейчас (в сводке по всем — первый)
   const openChat = (g: string, id: string) => {
@@ -317,9 +331,20 @@ export default function App() {
 
   const back = <button className="back" onClick={() => go('chat')}><Icon name="arrow" size={18} className="flip" /> К чату</button>
 
-  // новый бизнес — единственная отдельная страница; в сводке по всем — обзор
+  // отдельные страницы: разделы из меню и новый бизнес; в сводке по всем — обзор
   let content: React.ReactNode = null
-  if (page === 'newBusiness') {
+  if (isSection(page) && ev && settings) {
+    if (page === 'forecast') content = <ForecastPage ev={ev} applied={applied} onToggle={toggle} onShow={show} />
+    if (page === 'payments') {
+      content = (
+        <PaymentsPage
+          ev={ev} regime={REGIMES.find((r) => r.id === settings.regime)?.name ?? ''}
+          onAdd={() => setSheet('add')} onQr={() => setSheet('qr')}
+        />
+      )
+    }
+    if (page === 'ops') content = <OpsPage data={ev.data} />
+  } else if (page === 'newBusiness') {
     content = (
       <div className="page-narrow">
         {cur !== ALL && back}
@@ -392,6 +417,8 @@ export default function App() {
     <Sidebar
       items={bizItems} current={cur} chats={Object.fromEntries([FREE, ...bizIds].map((g) => [g, chatsOf(g)]))}
       open={page === 'chat' && at ? at : undefined}
+      section={isSection(page) ? page : undefined}
+      onSection={(p) => { openSection(p); if (!pinned) setNavPeek(false) }}
       pinned={pinned}
       onCollapse={() => {
         if (!roomy) return setNavSheet(false)
@@ -407,7 +434,9 @@ export default function App() {
 
   const bizCard = (
     <BizCard
-      items={bizItems} current={cur} onSelect={select} onAdd={() => go('newBusiness')}
+      items={bizItems} current={cur} onAdd={() => go('newBusiness')}
+      // открыт раздел — при смене бизнеса остаёмся в нём, только уже про другой бизнес
+      onSelect={(id) => { select(id); if (isSection(page) && id !== ALL) go(page) }}
       edit={settings ? {
         form: settings.form, regime: settings.regime,
         onRename: (name) => saveSettings(cur, { ...settings, name }),
