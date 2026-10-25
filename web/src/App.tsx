@@ -1,29 +1,29 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { CompanyData, PlannedEvent } from './lib/types'
-import { evaluate, HORIZON, incomeLine } from './lib/evaluate'
+import { evaluate, HORIZON } from './lib/evaluate'
 import { registerNames } from './lib/format'
-import { defaultSettings, type BizSettings } from './lib/settings'
-import { ForecastChart } from './components/ForecastChart'
-import { StatusCard } from './components/StatusCard'
-import { Bills } from './components/Bills'
+import { defaultSettings, type Account, type BizSettings } from './lib/settings'
+import { load, save } from './lib/store'
+import type { Answers } from './lib/confirm'
+import type { ViCard, ViMsg, ViWidget } from './lib/vi'
 import { Drawer } from './components/Drawer'
-import { MoneyCalendar } from './components/MoneyCalendar'
+import { PaymentsWidget } from './components/PaymentsWidget'
 import { WhatIf } from './components/WhatIf'
 import { Hundred } from './components/Hundred'
 import { Clients } from './components/Clients'
 import { Trust } from './components/Trust'
 import { AddEvent } from './components/AddEvent'
-import { VoiceAssistant } from './components/VoiceAssistant'
 import { Icon } from './components/Icon'
-import { AccountList, TotalBlock } from './components/Summary'
 import { AccountPage, NewAccount } from './components/AccountPages'
 import { OpsDonut } from './components/OpsDonut'
-import type { Account } from './lib/settings'
 import { Settings } from './components/Settings'
-import { ALL, BizSwitcher } from './components/BizSwitcher'
 import { Overview } from './components/Overview'
 import { AddBusiness } from './components/AddBusiness'
-import type { Answers } from './lib/confirm'
+import { ALL, FREE, Sidebar, type ChatMeta, type ChatRef } from './components/Sidebar'
+import { BizCard } from './components/BizCard'
+import { ViChat, type ViCommand } from './components/ViChat'
+import { InfoPanel, type Focus } from './components/InfoPanel'
+import { CardStack, Row } from './components/CardStack'
 import C047 from './data/C047.json'
 import C065 from './data/C065.json'
 import C140 from './data/C140.json'
@@ -35,52 +35,50 @@ const DEMO: Record<string, CompanyData> = {
   C065: C065 as unknown as CompanyData,
 }
 
-/** Разделы приложения: «Главное» — коротко, всё остальное — на своих страницах. */
-type Tab = 'main' | 'voice' | 'payments' | 'whatif' | 'money' | 'trust'
-const TABS: { id: Tab; title: string }[] = [
-  { id: 'main', title: 'Главное' },
-  { id: 'voice', title: 'Vi' },
-  { id: 'payments', title: 'Платежи' },
-  { id: 'whatif', title: 'Что если' },
-  { id: 'money', title: 'Расходы' },
-  { id: 'trust', title: 'Точность' },
-]
-type Page = Tab | 'settings' | 'newAccount' | 'newBusiness' | `account:${string}`
-
-function load<T>(key: string, fallback: T): T {
-  try {
-    const v = localStorage.getItem(key)
-    return v ? JSON.parse(v) : fallback
-  } catch {
-    return fallback
-  }
-}
-function save(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch { /* приватный режим — не страшно */ }
-}
+/** Всё о бизнесе — в разговоре с Vi: разделы он показывает прямо в переписке. Отдельная страница — только новый бизнес. */
+type Page = 'chat' | 'newBusiness'
 
 // распознавание QR тяжёлое и нужно редко — грузим, когда открыли панель
 const QrPay = lazy(() => import('./components/QrPay').then((m) => ({ default: m.QrPay })))
 
 const NO_STEPS = new Set<string>()
-const DESKTOP = '(min-width: 1024px)'
+const newChat = (): ChatMeta => ({ id: `c${Date.now().toString(36)}`, title: '', at: Date.now() })
+const chatTitle = (text: string) => (text.length > 48 ? `${text.slice(0, 46).trimEnd()}…` : text)
 
-/** Десктоп и телефон — разные раскладки: на широком экране две колонки. */
-function useDesktop() {
-  const [on, setOn] = useState(() => window.matchMedia(DESKTOP).matches)
+/**
+ * Чаты группы: бизнеса или «без группы» (FREE). Группа может быть и пустой.
+ * Переписку из прошлой версии (одна на бизнес) превращаем в первый чат его группы.
+ */
+const chatCache = new Map<string, ChatMeta[]>()
+function loadChats(g: string): ChatMeta[] {
+  const known = chatCache.get(g) ?? load<ChatMeta[] | null>(`chats:${g}`, null)
+  if (known) {
+    chatCache.set(g, known)
+    return known
+  }
+  const old = g === FREE ? [] : load<ViMsg[]>(`chat:${g}`, [])
+  if (old.length) save(`chat:${g}:c0`, old)
+  const list = old.length ? [{ id: 'c0', title: chatTitle(old.find((m) => m.role === 'user')?.text ?? ''), at: Date.now() }] : []
+  chatCache.set(g, list)
+  save(`chats:${g}`, list)
+  return list
+}
+
+function useMedia(query: string) {
+  const [on, setOn] = useState(() => window.matchMedia(query).matches)
   useEffect(() => {
-    const mq = window.matchMedia(DESKTOP)
+    const mq = window.matchMedia(query)
     const fn = () => setOn(mq.matches)
     mq.addEventListener('change', fn)
     return () => mq.removeEventListener('change', fn)
-  }, [])
+  }, [query])
   return on
 }
 
 export default function App() {
-  const desktop = useDesktop()
+  // три колонки, как у Claude: меню видно от 900 px, сводка справа — от 1200 px; уже — выезжают по кнопкам
+  const roomy = useMedia('(min-width: 900px)')
+  const wide = useMedia('(min-width: 1200px)')
   // бизнесы из загруженных выписок живут в браузере пользователя
   const [uploads, setUploads] = useState<Record<string, CompanyData>>(() => load('uploads', {}))
   const companies = useMemo(() => ({ ...DEMO, ...uploads }), [uploads])
@@ -92,28 +90,129 @@ export default function App() {
   const [view, setView] = useState<string>(() => load('company', 'C140'))
   const [settingsMap, setSettingsMap] = useState<Record<string, BizSettings>>({})
   const [manualMap, setManualMap] = useState<Record<string, PlannedEvent[]>>({})
-  const settingsOf = (id: string) => settingsMap[id] ?? load(`settings:${id}`, defaultSettings(companies[id]))
+  const settingsOf = (id: string): BizSettings => {
+    const s = settingsMap[id] ?? load(`settings:${id}`, defaultSettings(companies[id]))
+    // раньше систему налогов можно было не выбирать — такие настройки читаем как УСН «Доходы»
+    return (s.regime as string) === 'auto' ? { ...s, regime: 'usn6' } : s
+  }
   const manualOf = (id: string) => manualMap[id] ?? load<PlannedEvent[]>(`manual:${id}`, [])
   // ответы на прежние «догадки» продолжают уточнять прогноз
   const answersOf = (id: string) => load<Answers>(`answers:${id}`, {})
   const [applied, setApplied] = useState<Set<string>>(new Set())
-  const [page, setPage] = useState<Page>('main')
+  const [page, setPage] = useState<Page>('chat')
   // панели добавления: фразой или по QR-коду со счёта
   const [sheet, setSheet] = useState<null | 'add' | 'qr'>(null)
-  const [payView, setPayView] = useState<'list' | 'cal'>('list')
+  // карточка справа, о которой только что сказал Vi
+  const [focus, setFocus] = useState<Focus | null>(null)
+  const [infoSheet, setInfoSheet] = useState(false)
+  const [infoNew, setInfoNew] = useState(false)
+  const [navSheet, setNavSheet] = useState(false)
+  // левое меню можно свернуть; помним между заходами
+  const [navHidden, setNavHidden] = useState<boolean>(() => load('nav:hidden', false))
+  useEffect(() => save('nav:hidden', navHidden), [navHidden])
+  const [navPeek, setNavPeek] = useState(false)
+  const peekTimer = useRef(0)
+  useEffect(() => () => clearTimeout(peekTimer.current), [])
+  // курсор над свёрнутым меню (или его кнопкой); в меню открыто меню чата — не прячем, даже если курсор ушёл
+  const peekHover = useRef(false)
+  const peekHeld = useRef(false)
+  // свернули меню, а курсор так и остался на кнопке — не выдвигаем, пока курсор не уведут с кнопки и не вернут
+  const peekArmed = useRef(true)
+  // ссылки справа («Все платежи», счёт, «Новый счёт»…) — команда чату показать раздел
+  const [viCmd, setViCmd] = useState<ViCommand | null>(null)
 
   // выбранный бизнес мог быть удалён; «все» имеет смысл только для двух и больше
   const cur = view === ALL && bizIds.length > 1 ? ALL : bizIds.includes(view) ? view : bizIds[0]
+
+  // чаты с Vi группами: у каждого бизнеса свои и общие «без группы» (FREE); свежие сверху
+  const [chatsMap, setChatsMap] = useState<Record<string, ChatMeta[]>>({})
+  // последний открытый чат в каждом бизнесе и открытый сейчас (помним между заходами)
+  const [chatCur, setChatCur] = useState<Record<string, string>>({})
+  const [opened, setOpened] = useState<ChatRef | null>(() => load('nav:open', null))
+  useEffect(() => save('nav:open', opened), [opened])
+  const chatsOf = (g: string) => chatsMap[g] ?? loadChats(g)
+  const saveChats = (g: string, list: ChatMeta[]) => {
+    const sorted = [...list].sort((a, b) => b.at - a.at)
+    chatCache.set(g, sorted)
+    setChatsMap((m) => ({ ...m, [g]: sorted }))
+    save(`chats:${g}`, sorted)
+  }
+  const has = (r: ChatRef | null): r is ChatRef => !!r && chatsOf(r.g).some((c) => c.id === r.id)
+  // чатов нет совсем — открыт черновик без группы: в списке он появится с первым сообщением
+  const draft = useRef(newChat().id)
+  // какой чат в центре: открытый, если он этого бизнеса или без группы; иначе последний в бизнесе; иначе первый без группы
+  const lastIn: ChatRef = { g: cur, id: chatCur[cur] }
+  const at: ChatRef | null = cur === ALL ? null
+    : has(opened) && (opened.g === FREE || opened.g === cur) ? opened
+      : has(lastIn) ? lastIn
+        : chatsOf(cur)[0] ? { g: cur, id: chatsOf(cur)[0].id }
+          : chatsOf(FREE)[0] ? { g: FREE, id: chatsOf(FREE)[0].id }
+            : { g: FREE, id: draft.current }
 
   useEffect(() => {
     save('company', cur)
     save('businesses', bizIds)
   }, [cur, bizIds])
 
+  const go = (p: Page) => {
+    setPage(p)
+    setNavSheet(false)
+    setInfoSheet(false)
+  }
   const select = (id: string) => {
     setView(id)
     setApplied(new Set())
-    setPage('main')
+    setFocus(null)
+    go('chat')
+  }
+  // чат бизнеса открывает и сам бизнес; чат без группы — про бизнес, выбранный сейчас (в сводке по всем — первый)
+  const openChat = (g: string, id: string) => {
+    setOpened({ g, id })
+    if (g !== FREE) setChatCur((m) => ({ ...m, [g]: id }))
+    const biz = g !== FREE ? g : cur === ALL ? bizIds[0] : cur
+    if (biz !== cur) select(biz)
+    else go('chat')
+  }
+  // новый чат не плодим: если в этой группе уже есть пустой — просто возвращаемся в него
+  const startChat = (g: string) => {
+    const list = chatsOf(g)
+    const empty = list.find((c) => !c.title)
+    if (empty) return openChat(g, empty.id)
+    const c = newChat()
+    saveChats(g, [c, ...list])
+    openChat(g, c.id)
+  }
+  const renameChat = (g: string, id: string, title: string) => {
+    saveChats(g, chatsOf(g).map((c) => (c.id === id ? { ...c, title } : c)))
+  }
+  const deleteChat = (g: string, id: string) => {
+    try { localStorage.removeItem(`chat:${g}:${id}`) } catch { /* приватный режим */ }
+    saveChats(g, chatsOf(g).filter((c) => c.id !== id))
+  }
+  // в другую группу чат переезжает вместе с перепиской; открытый — открываем и там
+  const moveChat = (g: string, id: string, to: string) => {
+    const c = chatsOf(g).find((x) => x.id === id)
+    if (!c || g === to) return
+    // старые чаты из прошлой версии у всех бизнесов называются c0 — в новой группе id не должен совпасть
+    const moved = chatsOf(to).some((x) => x.id === id) ? { ...c, id: newChat().id } : c
+    const msgs = load<ViMsg[] | null>(`chat:${g}:${id}`, null)
+    if (msgs) save(`chat:${to}:${moved.id}`, msgs)
+    try { localStorage.removeItem(`chat:${g}:${id}`) } catch { /* приватный режим */ }
+    saveChats(g, chatsOf(g).filter((x) => x.id !== id))
+    saveChats(to, [moved, ...chatsOf(to)])
+    if (at && at.g === g && at.id === id && page === 'chat') openChat(to, moved.id)
+  }
+  const chatSent = (text: string) => {
+    if (!at) return
+    const list = chatsOf(at.g)
+    if (list.some((c) => c.id === at.id)) {
+      saveChats(at.g, list.map((c) => (c.id === at.id ? { ...c, title: c.title || chatTitle(text), at: Date.now() } : c)))
+      return
+    }
+    // черновик стал чатом: появляется в списке без группы
+    saveChats(at.g, [{ id: at.id, title: chatTitle(text), at: Date.now() }, ...list])
+    setOpened(at)
+    draft.current = newChat().id
   }
   const addBiz = (id: string) => {
     setBizIds([...bizIds, id])
@@ -151,7 +250,7 @@ export default function App() {
   const shown = cur === ALL ? bizIds : [cur]
   registerNames(shown.flatMap((id) => [...companies[id].clients.map((c) => c.name), ...companies[id].events.map((e) => e.cp)]))
 
-  const switcherItems = bizIds.map((id) => ({
+  const bizItems = bizIds.map((id) => ({
     id, name: settingsOf(id).name, industry: settingsOf(id).industry, tone: evals[id].status.tone,
   }))
 
@@ -165,15 +264,65 @@ export default function App() {
   const ev = cur === ALL ? null : evals[cur]
   const settings = cur === ALL ? null : settingsOf(cur)
   const available = Object.keys(DEMO).filter((id) => !bizIds.includes(id))
+  const addManual = (e: PlannedEvent) => saveManual(cur, [...manualOf(cur), e])
+  const removeManual = (id: string) => saveManual(cur, manualOf(cur).filter((m) => m.id !== id))
 
   const accountsSave = (accounts: Account[]) => settings && saveSettings(cur, { ...settings, accounts })
-  const account = page.startsWith('account:') && settings ? settings.accounts.find((a) => a.id === page.slice(8)) : undefined
-  const go = (p: Page) => { setPage(p); window.scrollTo({ top: 0 }) }
 
+  const infoVisible = wide
+  const onFocus = (card: ViCard) => {
+    setFocus({ card, n: Date.now() })
+    if (!infoVisible) setInfoNew(true)
+  }
+  const show = (widget: ViWidget, label: string) => {
+    setViCmd({ n: Date.now(), widget, label })
+    go('chat')
+  }
+
+  /** Раздел под ответом Vi — живой: считается из текущего прогноза и настроек, а не сохраняется картинкой. */
+  const renderWidget = (w: ViWidget): React.ReactNode => {
+    if (!ev || !settings) return null
+    if (w === 'payments') return <PaymentsWidget ev={ev} onAdd={() => setSheet('add')} />
+    if (w === 'whatif') return <WhatIf data={ev.data} baseMods={ev.mods} baseSim={ev.sim} baseVerdict={ev.now} horizon={HORIZON} />
+    if (w === 'trust') return <Trust data={ev.data} sim={ev.sim} />
+    if (w === 'money') {
+      return (
+        <>
+          <OpsDonut data={ev.data} />
+          <Hundred data={ev.data} />
+          {ev.data.clients.some((c) => c.delays.length >= 3) && <Clients data={ev.data} />}
+        </>
+      )
+    }
+    if (w === 'settings') {
+      return (
+        <Settings
+          s={settings} onChange={(s) => saveSettings(cur, s)} taxes={ev.sim.events.filter((e) => e.cat === 'tax')}
+          onReset={() => saveSettings(cur, defaultSettings(companies[cur]))}
+          onRemove={bizIds.length > 1 ? () => removeBiz(cur) : undefined}
+        />
+      )
+    }
+    if (w === 'newAccount') return <NewAccount onAdd={(a) => { accountsSave([...settings.accounts, a]); show(`account:${a.id}`, `Счёт «${a.name}»`) }} />
+    const a = settings.accounts.find((x) => w === `account:${x.id}`)
+    if (!a) return <p className="muted">Этого счёта больше нет.</p>
+    return (
+      <AccountPage
+        a={a} asOf={companies[cur].asOf}
+        onChange={(patch) => accountsSave(settings.accounts.map((x) => (x.id === a.id ? { ...x, ...patch } : x)))}
+        onDelete={a.main ? undefined : () => accountsSave(settings.accounts.filter((x) => x.id !== a.id))}
+      />
+    )
+  }
+
+  const back = <button className="back" onClick={() => go('chat')}><Icon name="arrow" size={18} className="flip" /> К чату</button>
+
+  // новый бизнес — единственная отдельная страница; в сводке по всем — обзор
   let content: React.ReactNode = null
   if (page === 'newBusiness') {
     content = (
       <div className="page-narrow">
+        {cur !== ALL && back}
         <h1 className="page-title">Новый бизнес</h1>
         <AddBusiness
           demos={available.map((id) => {
@@ -187,170 +336,153 @@ export default function App() {
     )
   } else if (cur === ALL) {
     content = <Overview items={bizIds.map((id) => ({ id, name: settingsOf(id).name, ev: evals[id] }))} />
-  } else if (ev && settings) {
-    if (page === 'settings') {
-      content = (
-        <Settings
-          s={settings} onChange={(s) => saveSettings(cur, s)} taxes={ev.sim.events.filter((e) => e.cat === 'tax')}
-          onReset={() => saveSettings(cur, defaultSettings(companies[cur]))}
-          onRemove={bizIds.length > 1 ? () => removeBiz(cur) : undefined}
-        />
-      )
-    } else if (page === 'newAccount') {
-      content = <NewAccount onAdd={(a) => { accountsSave([...settings.accounts, a]); go(`account:${a.id}`) }} />
-    } else if (account) {
-      content = (
-        <AccountPage
-          a={account} asOf={companies[cur].asOf}
-          onChange={(patch) => accountsSave(settings.accounts.map((x) => (x.id === account.id ? { ...x, ...patch } : x)))}
-          onDelete={account.main ? undefined : () => { accountsSave(settings.accounts.filter((x) => x.id !== account.id)); go('main') }}
-        />
-      )
-    } else if (page === 'payments') {
-      content = (
-        <>
-          <div className="page-head">
-            <h1 className="page-title">Платежи</h1>
-            <div className="seg">
-              <button className={payView === 'list' ? 'on' : ''} onClick={() => setPayView('list')}>Список</button>
-              <button className={payView === 'cal' ? 'on' : ''} onClick={() => setPayView('cal')}>Календарь</button>
-            </div>
-          </div>
-          {payView === 'list'
-            ? <Bills bills={ev.bills} title="На ближайшие 30 дней" income={incomeLine(ev.data, ev.sim)} onAdd={() => setSheet('add')} />
-            : <section className="card-block"><MoneyCalendar data={ev.data} sim={ev.sim} minEvent={ev.minEvent} /></section>}
-        </>
-      )
-    } else if (page === 'whatif') {
-      content = (
-        <>
-          <h1 className="page-title">А что если</h1>
-          <section className="card-block"><WhatIf data={ev.data} baseMods={ev.mods} baseSim={ev.sim} baseVerdict={ev.now} horizon={HORIZON} /></section>
-        </>
-      )
-    } else if (page === 'money') {
-      content = (
-        <>
-          <h1 className="page-title">Расходы и поступления</h1>
-          <OpsDonut data={ev.data} />
-          <div className="two-cards">
-            <section className="card-block"><Hundred data={ev.data} /></section>
-            {ev.data.clients.some((c) => c.delays.length >= 3) && <section className="card-block"><Clients data={ev.data} /></section>}
-          </div>
-        </>
-      )
-    } else if (page === 'voice') {
-      content = (
-        <VoiceAssistant
-          ev={ev} onGo={go}
-          onAdd={(e) => saveManual(cur, [...manualOf(cur), e])}
-          onRemove={(id) => saveManual(cur, manualOf(cur).filter((m) => m.id !== id))}
-        />
-      )
-    } else if (page === 'trust') {
-      content = (
-        <>
-          <h1 className="page-title">Точность прогноза</h1>
-          <section className="card-block"><Trust data={ev.data} sim={ev.sim} /></section>
-        </>
-      )
-    } else {
-      content = (
-        <>
-          <div className="tiles">
-            <button onClick={() => setSheet('add')}><Icon name="plus" size={26} /><span>Добавить<br />платёж</span></button>
-            <button onClick={() => setSheet('qr')}><Icon name="qr" size={26} /><span>Сканировать<br />QR</span></button>
-            <button onClick={() => go('voice')}><Icon name="mic" size={26} /><span>Сказать<br />голосом</span></button>
-            <button onClick={() => go('newAccount')}><Icon name="doc" size={26} /><span>Загрузить<br />выписку</span></button>
-          </div>
-
-          <StatusCard ev={ev} applied={applied} onToggle={toggle} />
-
-          <OpsDonut data={ev.data} />
-
-          <section className="card-block">
-            <div className="card-head">
-              <h2>Деньги на месяц вперёд</h2>
-              <button className="link" onClick={() => go('payments')}>Все платежи <Icon name="arrow" size={16} /></button>
-            </div>
-            <ForecastChart
-              asOf={ev.data.asOf} balanceNow={ev.data.balanceNow} history={ev.data.history} sim={ev.sim} horizon={HORIZON}
-              histDays={desktop ? 14 : 7} height={desktop ? 300 : 220}
-            />
-          </section>
-        </>
-      )
-    }
   }
 
-  const sideTotal = cur === ALL ? bizIds.reduce((s, id) => s + evals[id].total, 0) : ev?.total ?? 0
-  const sideFree = cur === ALL ? bizIds.reduce((s, id) => s + evals[id].free, 0) : ev?.free ?? 0
-  const isTab = TABS.some((t) => t.id === page)
+  // меню видно, если экран позволяет и его не свернули; иначе в левом верхнем углу — кнопка развернуть
+  const navShown = roomy && !navHidden
+  // свёрнутое меню: навели на кнопку — показываем поверх страницы, пока курсор над кнопкой или меню; нажали — закрепляем
+  const peekOn = roomy && navHidden && navPeek
+  const peek = (on: boolean) => {
+    clearTimeout(peekTimer.current)
+    peekTimer.current = window.setTimeout(() => setNavPeek(on), on ? 120 : 280)
+  }
+  const hover = roomy && navHidden ? {
+    onPointerEnter: (e: React.PointerEvent) => {
+      if (e.pointerType !== 'mouse' || !peekArmed.current) return
+      peekHover.current = true
+      peek(true)
+    },
+    onPointerLeave: (e: React.PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      peekArmed.current = true
+      peekHover.current = false
+      if (!peekHeld.current) peek(false)
+    },
+  } : {}
+  // меню чата закрыли, а курсора над меню уже нет — теперь можно и спрятать
+  const holdPeek = (held: boolean) => {
+    peekHeld.current = held
+    if (!held && !peekHover.current) peek(false)
+  }
+  const pin = () => {
+    clearTimeout(peekTimer.current)
+    setNavPeek(false)
+    setNavHidden(false)
+  }
+  const menuBtn = !navShown && (
+    <button
+      className="icon-btn nav-toggle" onClick={() => (roomy ? pin() : setNavSheet(true))} {...hover}
+      aria-label={roomy ? 'Закрепить меню' : 'Открыть меню'} title={roomy ? 'Закрепить меню' : 'Открыть меню'}
+    >
+      <Icon name="sidebar" size={20} />
+    </button>
+  )
+  const infoBtn = !wide && (
+    <button className={`icon-btn info-btn ${infoNew ? 'dot' : ''}`} aria-label="Сводка" title="Сводка" onClick={() => { setInfoNew(false); setInfoSheet(true) }}>
+      <Icon name="panel" size={20} />
+    </button>
+  )
+  // сверху ничего нет; только кнопка развернуть меню (когда оно свёрнуто или экран узкий) и сводки (на узком).
+  // На широком экране кнопки висят поверх страницы и не сдвигают переписку; кнопка меню — выше выехавшего меню,
+  // поэтому под курсором всё время одна и та же кнопка
+  const bar = (menuBtn || infoBtn) ? <div className={`center-bar ${roomy ? 'float' : ''}`}>{menuBtn}<span className="grow" />{infoBtn}</div> : null
+
+  // одно и то же меню: колонкой, выезжающее на телефоне или поверх страницы по наведению
+  const sidebar = (pinned: boolean) => (
+    <Sidebar
+      items={bizItems} current={cur} chats={Object.fromEntries([FREE, ...bizIds].map((g) => [g, chatsOf(g)]))}
+      open={page === 'chat' && at ? at : undefined}
+      pinned={pinned}
+      onCollapse={() => {
+        if (!roomy) return setNavSheet(false)
+        peekArmed.current = false
+        setNavHidden(true)
+      }}
+      onNew={(g) => { startChat(g); if (!pinned) setNavPeek(false) }}
+      onOpen={(g, id) => { openChat(g, id); if (!pinned) setNavPeek(false) }}
+      onRename={renameChat} onDelete={deleteChat} onMove={moveChat}
+      onBusy={pinned ? undefined : holdPeek}
+    />
+  )
+
+  const bizCard = (
+    <BizCard
+      items={bizItems} current={cur} onSelect={select} onAdd={() => go('newBusiness')}
+      edit={settings ? {
+        form: settings.form, regime: settings.regime,
+        onRename: (name) => saveSettings(cur, { ...settings, name }),
+        onRegime: (regime) => saveSettings(cur, { ...settings, regime }),
+      } : undefined}
+    />
+  )
+
+  const info = ev && settings ? (
+    <InfoPanel
+      key={cur} bizId={cur} biz={bizCard} bizName={settings.name} ev={ev} accounts={settings.accounts} manual={manualOf(cur)} focus={focus}
+      onShow={show} onRemoveManual={removeManual}
+    />
+  ) : (
+    <CardStack cards={[
+      { id: 'biz', title: 'Бизнес', body: bizCard },
+      {
+        id: 'all',
+        title: 'Все бизнесы',
+        body: (
+          <>
+            <Row icon="bank" end={<b className="num">{compactRub(bizIds.reduce((s, id) => s + evals[id].total, 0))}</b>}>Всего</Row>
+            <Row icon="cash" end={<b className="num pos">{compactRub(bizIds.reduce((s, id) => s + evals[id].free, 0))}</b>}>Свободно</Row>
+            {bizIds.map((id) => (
+              <Row key={id} lead={<span className={`tone-dot ${evals[id].status.tone}`} />} onClick={() => select(id)} end={<span className="num">{compactRub(evals[id].total)}</span>}>
+                {settingsOf(id).name}
+                <small>{evals[id].status.title}</small>
+              </Row>
+            ))}
+          </>
+        ),
+      },
+    ]} />
+  )
 
   return (
     <>
-      <header className="col top-row">
-        <BizSwitcher items={switcherItems} current={cur} onSelect={select} onAdd={() => go('newBusiness')} />
-        {cur !== ALL && page !== 'newBusiness' && (
-          <nav className="tabs">
-            {TABS.map((t) => <button key={t.id} className={page === t.id ? 'on' : ''} onClick={() => go(t.id)}>{t.title}</button>)}
-          </nav>
-        )}
-        {cur !== ALL && (
-          <button className={`icon-btn gear ${page === 'settings' ? 'on' : ''}`} onClick={() => go(page === 'settings' ? 'main' : 'settings')} aria-label="Настройки бизнеса">
-            <Icon name="gear" size={22} stroke={1.8} />
-          </button>
-        )}
-      </header>
+      <div className={`shell ${navShown ? 'with-nav' : ''} ${infoVisible ? 'with-info' : ''}`}>
+        {navShown && <aside className="nav-col">{sidebar(true)}</aside>}
 
-      <main className={`col layout ${page === 'main' || cur === ALL ? '' : 'inner'} ${page === 'voice' && cur !== ALL ? 'fill' : ''}`} key={cur}>
-        <aside className="side">
-          <TotalBlock total={sideTotal} free={sideFree} label={cur === ALL ? 'Всего во всех бизнесах' : 'Всего на счетах'} />
-          {cur === ALL ? (
-            <div className="acc-list">
-              {bizIds.map((id) => (
-                <button key={id} className="acc-item" onClick={() => select(id)}>
-                  <span className={`tone-dot ${evals[id].status.tone}`} />
-                  <span className="acc-item-text">
-                    <b className="num">{compactRub(evals[id].total)}</b>
-                    <span>{settingsOf(id).name}</span>
-                    <small>{evals[id].status.title}</small>
-                  </span>
-                </button>
-              ))}
-              <button className="acc-new" onClick={() => go('newBusiness')}><Icon name="plus" size={18} stroke={2} /> Новый бизнес</button>
-            </div>
-          ) : settings && (
-            <AccountList
-              accounts={settings.accounts} asOf={companies[cur].asOf} selected={account?.id}
-              onOpen={(id) => go(`account:${id}`)} onNew={() => go('newAccount')}
-            />
-          )}
-        </aside>
-        <section className={`content ${isTab ? '' : 'page'}`}>
-          {!isTab && cur !== ALL && page !== 'newBusiness' && (
-            <button className="back" onClick={() => go('main')}><Icon name="arrow" size={18} className="flip" /> Главное</button>
-          )}
-          {page === 'newBusiness' && (
-            <button className="back" onClick={() => go('main')}><Icon name="arrow" size={18} className="flip" /> Назад</button>
-          )}
-          {content}
-        </section>
-      </main>
+        {ev && settings && at ? (
+          <ViChat
+            key={`vi:${at.g}:${at.id}`} ev={ev} group={at.g} page={page} chatId={at.id}
+            view={page === 'chat' ? null : content} applied={applied} roomy={roomy} bar={bar} onSent={chatSent}
+            onToggle={toggle} onAdd={addManual} onRemove={removeManual}
+            renderWidget={renderWidget} command={viCmd} onSheet={setSheet} onShowChat={() => go('chat')} onFocus={onFocus}
+          />
+        ) : (
+          <section className="center">
+            {bar}
+            <div className="center-scroll"><div className="center-page content">{content}</div></div>
+          </section>
+        )}
+
+        {infoVisible && <aside className="info-col">{info}</aside>}
+      </div>
+
+      {!roomy && navSheet && (
+        <div className="nav-sheet" role="dialog" aria-modal="true" aria-label="Меню">
+          <div className="drawer-backdrop" onClick={() => setNavSheet(false)} />
+          <aside>{sidebar(true)}</aside>
+        </div>
+      )}
+      {peekOn && <aside className="nav-peek" {...hover}>{sidebar(false)}</aside>}
+      {!infoVisible && infoSheet && <Drawer title="Сводка" onClose={() => setInfoSheet(false)}>{info}</Drawer>}
 
       {ev && sheet === 'add' && (
         <Drawer title="Что ожидается?" onClose={() => setSheet(null)}>
-          <AddEvent
-            today={ev.data.asOf} days={ev.data.forecast.days} horizon={HORIZON} items={manualOf(cur)}
-            onAdd={(e) => saveManual(cur, [...manualOf(cur), e])}
-            onRemove={(id) => saveManual(cur, manualOf(cur).filter((m) => m.id !== id))}
-          />
+          <AddEvent today={ev.data.asOf} days={ev.data.forecast.days} horizon={HORIZON} items={manualOf(cur)} onAdd={addManual} onRemove={removeManual} />
         </Drawer>
       )}
       {ev && sheet === 'qr' && (
         <Drawer title="Сканировать QR" onClose={() => setSheet(null)}>
           <Suspense fallback={null}>
-            <QrPay days={ev.data.forecast.days} onAdd={(e) => saveManual(cur, [...manualOf(cur), e])} onClose={() => setSheet(null)} />
+            <QrPay days={ev.data.forecast.days} onAdd={addManual} onClose={() => setSheet(null)} />
           </Suspense>
         </Drawer>
       )}

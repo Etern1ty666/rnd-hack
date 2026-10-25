@@ -1,0 +1,32 @@
+/* тестовая страница вариантов Vi: роботы сидят на полосках, как на строке ввода */
+.rg { width: 100%; max-width: 1280px; margin: 0 auto; padding: 36px 24px 72px; }
+.rg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.rg-head h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; }
+.rg-head p { margin: 8px 0 0; max-width: 620px; color: var(--ink-2); }
+.rg-head a { padding-top: 10px; font-size: 15px; color: var(--ink-2); text-decoration: none; }
+.rg-head a:hover { color: var(--ink); }
+.rg-section { margin-top: 48px; }
+.rg-section h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.rg-section > p { margin: 4px 0 0; color: var(--ink-3); }
+.rg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 48px 28px; margin-top: 28px; }
+.rg-item { margin: 0; display: flex; flex-direction: column; }
+.rg-stage { display: flex; justify-content: center; align-items: flex-end; height: 176px; }
+.rg-bot { display: block; width: 150px; padding: 0; border: 0; background: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+.rg-bot:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 12px; }
+.rg-bot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.rg-bar { height: 40px; border-radius: 20px; background: var(--paper); }
+.rg-cap { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.rg-cap b { font-size: 15px; font-weight: 600; }
+.rg-cap span { font-size: 13px; line-height: 1.35; color: var(--ink-3); }
+.rg-cap small { margin-left: 4px; font-size: 13px; font-weight: 500; color: var(--ink-3); }
+.rg-play {
+  align-self: flex-start; margin-top: 8px; border: 0; border-radius: 999px; padding: 6px 14px;
+  background: var(--paper); font-size: 13.5px; font-weight: 600; color: var(--ink);
+}
+.rg-play:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); }
+@media (max-width: 480px) {
+  .rg { padding: 24px 16px 56px; }
+  .rg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 16px; }
+  .rg-bot { width: 104px; }
+  .rg-stage { height: 128px; }
+}

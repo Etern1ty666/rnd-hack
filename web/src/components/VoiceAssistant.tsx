@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Evaluation } from '../lib/evaluate'
-import type { PlannedEvent } from '../lib/types'
-import { compact, fmtDay } from '../lib/format'
-import { parsePhrase } from '../lib/phrase'
+import type { ViAction, ViMsg } from '../lib/vi'
 import { Robot, type Mood } from './Robot'
 import { Wave } from './Wave'
 import { Icon } from './Icon'
 
 interface Props {
-  ev: Evaluation
-  onAdd: (e: PlannedEvent) => void
-  onRemove: (id: string) => void
-  onGo: (page: 'payments' | 'whatif') => void
+  /** Спросить Vi: вопрос и ответ попадают и в переписку. */
+  ask: (q: string) => ViMsg
+  /** Нажали кнопку под ответом; если вернулся текст — показываем его вместо ответа. */
+  onAction: (a: ViAction, msgId: string) => string | void
 }
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'reply'
@@ -25,15 +22,15 @@ interface Scenario {
 }
 
 const GREETING = 'Привет! Я слежу за деньгами вашего бизнеса. Спросите меня о платежах — я посчитаю.'
-const rub = (v: number) => `${compact(v)}\u00a0₽`
+const QUESTIONS = ['Хватит ли денег на зарплату?', 'Клиент обещал 300 тысяч 20-го', 'Сколько я могу взять себе?', 'Когда ближайший налог?']
 
 /**
- * Голосовой помощник. Пока это витрина: речь не распознаём, а «проигрываем» готовые вопросы
- * слово за словом, как это делает потоковое распознавание. Ответы — настоящие, из прогноза.
+ * Голосовой режим Vi. Пока это витрина: речь не распознаём, а «проигрываем» готовые вопросы
+ * слово за словом, как это делает потоковое распознавание. Ответы — настоящие, из прогноза (lib/vi.ts).
  * Чтобы подключить живой микрофон, достаточно заменить start(): слова кладём в setHeard/setPartial,
  * громкость — в level, конец фразы — вызов think().
  */
-export function VoiceAssistant({ ev, onAdd, onRemove, onGo }: Props) {
+export function VoiceAssistant({ ask, onAction }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [heard, setHeard] = useState('')
   const [partial, setPartial] = useState('')
@@ -47,59 +44,24 @@ export function VoiceAssistant({ ev, onAdd, onRemove, onGo }: Props) {
   const turn = useRef(0)
   const said = useRef('')
   const current = useRef<Scenario | null>(null)
-  const evRef = useRef(ev)
-  useEffect(() => { evRef.current = ev }, [ev])
 
-  const scenarios: Scenario[] = [
-    {
-      q: 'Хватит ли денег на зарплату?',
-      answer: () => {
-        const e = evRef.current
-        const pay = e.bills.filter((b) => b.label === 'Зарплата')
-        const b = pay.find((x) => x.status !== 'ok') ?? pay[0]
-        if (!b) return { text: 'В ближайший месяц зарплаты не вижу.' }
-        const help = e.actions[0] ? ` Выручит: ${e.actions[0].title.charAt(0).toLowerCase()}${e.actions[0].title.slice(1)}.` : ''
-        const open = { label: 'Открыть платежи', run: () => onGo('payments') }
-        if (b.status === 'short') return { text: `${fmtDay(b.date)} на зарплату не хватит ${rub(b.short)}.${help}`, action: open }
-        if (b.status === 'risk') return { text: `${fmtDay(b.date)} на зарплату может не хватить — всё зависит от поступлений.${help}`, action: open }
-        return { text: `Хватает: зарплата ${fmtDay(b.date)}, ${rub(b.amount)}.` }
-      },
+  const scenarios: Scenario[] = QUESTIONS.map((q) => ({
+    q,
+    answer: () => {
+      const m = ask(q)
+      const a = m.actions?.[0]
+      return {
+        text: m.text,
+        action: a && {
+          label: a.label,
+          run: () => {
+            const t = onAction(a, m.id)
+            if (t) { setAction(undefined); setReply(t) }
+          },
+        },
+      }
     },
-    {
-      q: 'Клиент обещал 300 тысяч 20-го',
-      answer: () => {
-        const e = evRef.current
-        const p = parsePhrase('клиент обещал 300 тысяч 20-го', e.data.asOf)
-        if (!p.amount || !p.date) return { text: 'Не расслышал сумму или дату — повторите, пожалуйста.' }
-        const id = `v${Date.now()}`
-        onAdd({ id, date: p.date, amount: p.amount, cat: 'manual', kind: 'manual', title: 'Обещанная оплата', cp: 'Клиент', source: 'manual' })
-        return {
-          text: `Записал: клиент заплатит ${rub(p.amount)} ${fmtDay(p.date)}. Прогноз уже обновил.`,
-          action: { label: 'Отменить', run: () => { onRemove(id); setAction(undefined); setReply('Хорошо, убрал эту оплату из прогноза.') } },
-        }
-      },
-    },
-    {
-      q: 'Сколько я могу взять себе?',
-      answer: () => {
-        const free = evRef.current.free
-        return free > 0
-          ? { text: `Без риска для платежей — до ${rub(free)}.` }
-          : { text: 'Пока лучше ничего не выводить: все деньги уйдут на платежи месяца.', action: { label: 'Посчитать «что если»', run: () => onGo('whatif') } }
-      },
-    },
-    {
-      q: 'Когда ближайший налог?',
-      answer: () => {
-        const b = evRef.current.bills.find((x) => x.label === 'Налог')
-        if (!b) return { text: 'В ближайший месяц налогов нет.' }
-        return {
-          text: `${fmtDay(b.date)} — налог ${rub(b.amount)}.${b.status === 'short' ? ` На него не хватит ${rub(b.short)}.` : ' На него хватает.'}`,
-          action: { label: 'Открыть платежи', run: () => onGo('payments') },
-        }
-      },
-    },
-  ]
+  }))
 
   const at = (ms: number, fn: () => void) => { timers.current.push(window.setTimeout(fn, ms)) }
   const clear = () => {

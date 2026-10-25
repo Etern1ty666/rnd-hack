@@ -4,14 +4,20 @@
  * жёлтый — может не хватить, зелёный — поступления.
  */
 :root {
-  --page: #f4f3ef;
+  /* фон нейтрально-серый, строка ввода и карточки белые; всплывающие меню — белые с тенью */
+  --page: #f4f4f4;
   --paper: #ffffff;
-  --paper-2: #ecebe6;
+  --paper-2: #ececec;
+  --pop: #ffffff;
+  /* одна высота у всех строк меню слева и меню чата: «Новый чат», группы, чаты, пункты */
+  --nav-row: 36px;
+  /* сообщения человека: серые, на ступеньку темнее фона, чтобы не сливались с ним */
+  --bubble: #ebebeb;
   --ink: #121212;
-  --ink-2: #55544f;
-  --ink-3: #8a8984;
-  --line: #e4e3dd;
-  --line-2: #cfcec7;
+  --ink-2: #555555;
+  --ink-3: #8a8a8a;
+  --line: #e4e4e4;
+  --line-2: #cfcfcf;
 
   --red: #d7261e;
   --red-wash: #fbe3e1;
@@ -19,6 +25,7 @@
   --yellow-wash: #fff2c6;
   --green: #11804a;
   --blue: #2a78d6;
+  --blue-wash: #e8f1fb;
 
   --font: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light;
@@ -55,11 +62,14 @@ button { cursor: pointer; }
 .flip-v { transform: rotate(180deg); }
 .switcher-menu {
   position: absolute; top: calc(100% + 6px); left: -8px; z-index: 40; width: min(340px, calc(100vw - 24px));
-  background: var(--paper); border-radius: 16px; padding: 6px 0; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+  background: var(--pop); border-radius: 16px; padding: 6px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
   animation: fade 0.12s ease-out;
 }
 .sw-item, .biz-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 16px; border: 0; background: transparent; text-align: left; }
 .sw-item:hover, .biz-row:hover { background: var(--page); }
+/* пункты меню — скруглённые внутри меню, подсветка не вылезает за края и не наезжает на соседей */
+.switcher-menu .sw-item { padding: 10px 12px; border-radius: 10px; }
+.switcher-menu .sw-item:focus-visible { outline: none; background: var(--page); }
 .sw-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sw-text b { font-size: 15px; font-weight: 700; }
 .sw-text span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -73,8 +83,8 @@ button { cursor: pointer; }
 .gear { color: var(--ink); }
 
 /* ——— Разделители не до краёв блока ——— */
-.bill, .card-list > *, .switcher-menu > * { position: relative; }
-.bill + .bill::before, .card-list > * + *::before, .switcher-menu > * + *::before {
+.bill, .card-list > * { position: relative; }
+.bill + .bill::before, .card-list > * + *::before {
   content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: var(--line);
 }
 
@@ -380,7 +390,7 @@ button { cursor: pointer; }
 .tabs button { border: 0; background: transparent; padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .tabs button:hover { background: var(--paper); color: var(--ink); }
 .tabs button.on { background: var(--ink); color: #fff; }
-.layout { padding-bottom: 64px; }
+.layout { padding-bottom: 120px; }
 .side { margin-bottom: 18px; }
 .content > * + * { margin-top: 16px; }
 .content .back { margin-bottom: -8px; }
@@ -444,32 +454,33 @@ button { cursor: pointer; }
 /* счета — только на главной: на внутренних страницах раздел занимает всю ширину */
 .layout.inner .side { display: none; }
 
-/* ——— Голосовой помощник ——— */
-/* страница Vi — ровно на один экран: робот занимает свободную высоту, остальное по размеру */
+/* ——— Голосовой режим Vi ——— */
 #root { display: flex; flex-direction: column; min-height: 100dvh; }
-#root:has(> .layout.fill) { height: 100dvh; }
 .col { width: 100%; }
-main.layout.fill { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; padding-bottom: 16px; }
-.layout.fill .content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .voice {
   flex: 1; min-height: 0; width: 100%; max-width: 960px; margin: 0 auto; padding-top: 8px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(8px, 2vh, 18px); text-align: center;
 }
 .voice-bot { flex: 1 1 0; min-height: 90px; max-height: 250px; width: 100%; display: flex; justify-content: center; }
 .robot { display: block; height: 100%; width: auto; aspect-ratio: 1; overflow: visible; }
-.robot-eye { transform-box: fill-box; transform-origin: center; }
+/* наклон, подскок, дыхание и толчки — в кадре анимации (Robot.tsx); здесь только парение в голосовом режиме */
 .robot-body { animation: bot-float 3.2s ease-in-out infinite; }
+.robot.standing .robot-body { animation: none; }
+.robot-spiral { transform-box: fill-box; transform-origin: center; animation: bot-spin 0.9s linear infinite; }
+@keyframes bot-spin { to { transform: rotate(360deg); } }
 .robot-shadow { fill: rgba(0, 0, 0, 0.1); transform-box: fill-box; transform-origin: center; animation: bot-shadow 3.2s ease-in-out infinite; }
 @keyframes bot-float { 50% { transform: translateY(-7px); } }
 @keyframes bot-shadow { 50% { transform: scaleX(0.85); opacity: 0.6; } }
-.robot-tilt { transform-box: fill-box; transform-origin: 50% 100%; transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1); }
-.robot.listening .robot-tilt { transform: rotate(-5deg); }
-.robot.thinking .robot-tilt { transform: rotate(3deg); }
-.robot.happy .robot-tilt { animation: bot-hop 0.5s ease-out; }
-@keyframes bot-hop { 40% { transform: translateY(-10px); } }
 .robot-bulb { fill: var(--green); transition: fill 0.2s; }
 .robot.listening .robot-bulb { fill: var(--red); animation: bulb 0.9s ease-in-out infinite; }
-.robot.thinking .robot-bulb { fill: var(--yellow); animation: bulb 0.45s ease-in-out infinite; }
+.robot.thinking .robot-bulb { fill: var(--yellow); }
+.robot-signal circle {
+  fill: none; stroke: var(--yellow); stroke-width: 2; opacity: 0;
+  transform-box: fill-box; transform-origin: center; animation: bot-signal 1.5s ease-out infinite;
+}
+.robot-signal circle:nth-child(2) { animation-delay: 0.5s; }
+.robot-signal circle:nth-child(3) { animation-delay: 1s; }
+@keyframes bot-signal { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3.4); opacity: 0; } }
 @keyframes bulb { 50% { opacity: 0.4; } }
 
 .voice-bubble {
@@ -541,3 +552,425 @@ main.layout.fill { flex: 1; min-height: 0; display: flex; flex-direction: column
 }
 .bank-badge.logo { background: #fff; }
 .bank-badge.logo img { object-fit: contain; display: block; }
+
+/* ——— Каркас, как у Claude: меню слева, разговор с Vi по центру, сводка справа ———
+ * Бесшовно: один фон на все три колонки, без линий между ними; края прокрутки растворяются,
+ * карточки отделяются от фона только цветом и мягкой тенью. */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); height: 100dvh; background: var(--page); }
+.shell.with-nav { grid-template-columns: 264px minmax(0, 1fr); }
+.shell.with-info { grid-template-columns: minmax(0, 1fr) 360px; }
+.shell.with-nav.with-info { grid-template-columns: 264px minmax(0, 1fr) 360px; }
+.nav-col { min-height: 0; }
+.info-col { min-height: 0; overflow-y: auto; }
+/* содержимое уходит под края плавно, без резкого обреза */
+.info-col { mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 calc(100% - 24px), transparent); }
+/* список чатов растворяется только с той стороны, где за краем что-то есть: иначе верхний чат выглядит засвеченным */
+.nav-scroll.fade-top { mask-image: linear-gradient(to bottom, transparent, #000 18px); }
+.nav-scroll.fade-bottom { mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
+.nav-scroll.fade-top.fade-bottom { mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 calc(100% - 24px), transparent); }
+/* переписка растворяется у краёв совсем чуть-чуть — робот стоит поверх неё, а не на пустой полосе */
+.center-scroll { mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 10px), transparent); }
+
+/* меню: «Новый чат» без подложки и история чатов группами по бизнесам */
+.nav { height: 100%; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
+/* шапка меню: свернуть и логотип «Хватит?» — вопрос красный, как на значке */
+.nav-head { flex: none; display: flex; align-items: center; gap: 6px; height: 56px; padding: 0 10px 0 8px; }
+.nav-toggle { color: var(--ink-2); padding: 8px; border-radius: 10px; }
+.nav-toggle:hover { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+.brand { border: 0; background: none; padding: 4px 6px; margin-left: -2px; border-radius: 8px; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
+/* логотип — без подложки и обводки, даже при наведении и нажатии */
+.brand:focus:not(:focus-visible) { outline: none; }
+.brand i { font-style: normal; color: var(--red); }
+.nav-new {
+  flex: none; display: flex; align-items: center; gap: 12px; height: var(--nav-row); margin: 0 10px 6px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; font-size: 15px; font-weight: 500; color: var(--ink); text-align: left;
+}
+.nav-new:hover { background: rgba(0, 0, 0, 0.04); }
+.nav-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+/* место кнопки «свернуть», когда меню выехало поверх страницы: сама кнопка остаётся на странице, над меню */
+.nav-toggle-slot { flex: none; width: 36px; height: 36px; }
+/* чаты без группы — сверху, без заголовка; под ними группы по бизнесам */
+.nav-free { display: flex; flex-direction: column; gap: 1px; border-radius: 12px; }
+.nav-group { margin-top: 14px; display: flex; flex-direction: column; gap: 1px; border-radius: 12px; }
+.nav-free:empty + .nav-group { margin-top: 4px; }
+/* наведение — подсвечивается вся строка группы целиком, а у «+» своя подложка потемнее */
+.nav-group-head { display: flex; align-items: center; gap: 2px; height: var(--nav-row); border-radius: 10px; }
+.nav-group-head:hover { background: rgba(0, 0, 0, 0.04); }
+.nav-group-toggle {
+  flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 10px; background: none;
+  font-size: 13.5px; font-weight: 500; color: var(--ink-3); text-align: left;
+}
+/* бизнес, про который сейчас отвечает Vi */
+.nav-group.cur .nav-group-toggle { color: var(--ink-2); }
+.nav-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* «+» — новый чат прямо в группе: виден, пока курсор над группой */
+.nav-group-add {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 8px;
+  background: none; color: var(--ink-2); opacity: 0; transition: opacity 0.12s;
+}
+.nav-group:hover .nav-group-add, .nav-group-add:focus-visible { opacity: 1; }
+.nav-group-add:hover { color: var(--ink); background: rgba(0, 0, 0, 0.07); }
+@media (hover: none) { .nav-group-add { opacity: 1; } }
+/* «Показать ещё» — такая же строка, как чат, только тише; рядом — сколько ещё спрятано */
+.nav-more {
+  display: flex; align-items: center; gap: 6px; width: 100%; height: var(--nav-row); padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; font-size: 13.5px; font-weight: 500; color: var(--ink-2); text-align: left;
+}
+.nav-more span { color: var(--ink-3); font-weight: 400; }
+.nav-more:hover { color: var(--ink); background: rgba(0, 0, 0, 0.04); }
+.nav-empty { display: flex; align-items: center; height: var(--nav-row); margin: 0; padding: 0 12px; font-size: 13px; color: var(--ink-3); }
+/* перетаскивание: чат бледнеет, группа под ним подсвечивается */
+.nav-chat.dragging { opacity: 0.4; }
+.nav-free.drop, .nav-group.drop { background: rgba(42, 120, 214, 0.08); box-shadow: inset 0 0 0 1.5px rgba(42, 120, 214, 0.35); }
+.nav-drop-hint { display: flex; align-items: center; height: var(--nav-row); margin: 0; padding: 0 12px; border: 1.5px dashed var(--line-2); border-radius: 10px; font-size: 13px; color: var(--ink-3); }
+.nav-caret { flex: none; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; transition: transform 0.15s; }
+.nav-caret.closed { transform: rotate(-90deg); }
+/* не выбран — без фона; наведение — серый потусклее; выбран — серый */
+.nav-chat { position: relative; display: flex; align-items: center; height: var(--nav-row); border-radius: 10px; }
+.nav-chat:hover, .nav-chat.menu { background: rgba(0, 0, 0, 0.04); }
+.nav-chat.on, .nav-chat.on:hover { background: rgba(0, 0, 0, 0.08); }
+.nav-chat-open {
+  flex: 1; min-width: 0; align-self: stretch; border: 0; background: none; padding: 0 12px; text-align: left; font-size: 14.5px; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* «⋯» у чата и «+» у группы — одинаковые квадраты внутри строки */
+.nav-chat-more {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 8px;
+  background: none; color: var(--ink-2); opacity: 0;
+}
+.nav-chat:hover .nav-chat-more, .nav-chat.menu .nav-chat-more, .nav-chat-more:focus-visible { opacity: 1; }
+.nav-chat-more:hover, .nav-chat.menu .nav-chat-more { color: var(--ink); background: rgba(0, 0, 0, 0.06); }
+@media (hover: none) { .nav-chat-more { opacity: 1; } }
+/* меню чата — поверх страницы, место считает Sidebar: под «⋯» или над ним */
+.nav-menu {
+  position: fixed; z-index: 70; top: 0; left: 0; min-width: 220px; max-width: 280px; padding: 6px;
+  background: var(--pop); border-radius: 12px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16); animation: fade 0.12s ease-out;
+}
+.nav-menu button {
+  width: 100%; height: var(--nav-row); display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0 10px; border-radius: 8px;
+  font-size: 14.5px; color: var(--ink); text-align: left;
+}
+.nav-menu button svg { flex: none; color: var(--ink-2); }
+.nav-menu button:hover:not(:disabled) { background: var(--page); }
+.nav-menu button:disabled { cursor: default; color: var(--ink-3); }
+.nav-menu .danger, .nav-menu .danger svg { color: var(--red); }
+.nav-menu .danger.sure { font-weight: 600; background: var(--red-wash); }
+.nav-menu-sep { display: block; height: 1px; margin: 6px 8px; background: var(--line); }
+.nav-menu-go { margin-left: auto; transform: rotate(-90deg); }
+.nav-menu .nav-menu-back { font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.nav-menu-back svg { transform: rotate(90deg); }
+.nav-menu-check { flex: none; width: 17px; display: grid; place-items: center; }
+.nav-menu-check svg { color: var(--ink); }
+.nav-menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-chat-edit {
+  flex: 1; min-width: 0; height: calc(var(--nav-row) - 6px); margin: 3px; padding: 0 9px; border: 0; border-radius: 8px; outline: 2px solid var(--ink);
+  background: var(--paper); font: inherit; font-size: 14.5px; color: var(--ink);
+}
+.nav-sheet { position: fixed; inset: 0; z-index: 50; }
+.nav-sheet > aside {
+  position: absolute; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); padding-top: env(safe-area-inset-top);
+  background: var(--page); box-shadow: 12px 0 40px rgba(0, 0, 0, 0.14); animation: slide-l 0.22s ease-out;
+}
+@keyframes slide-l { from { transform: translateX(-40px); opacity: 0; } }
+/* свёрнутое меню по наведению — поверх страницы, кнопка в шапке ровно под курсором */
+.nav-peek {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 45; width: 264px; background: var(--page);
+  border-radius: 0 18px 18px 0; box-shadow: 12px 0 40px rgba(0, 0, 0, 0.14); animation: slide-l 0.18s ease-out;
+}
+
+/* центр без шапки: переписка или раздел, внизу строка ввода с Vi; на узком экране сверху только кнопки меню и сводки */
+.center { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.center-bar { flex: none; display: flex; align-items: center; height: 56px; padding: env(safe-area-inset-top) 8px 0; }
+.center-bar .grow { flex: 1; }
+/* широкий экран: кнопки висят поверх страницы и ничего не сдвигают; кнопка меню — выше выехавшего меню */
+.center-bar.float { position: absolute; top: 0; left: 0; right: 0; z-index: 46; pointer-events: none; }
+.center-bar.float > .icon-btn { pointer-events: auto; }
+.center:has(.center-bar.float) .center-page { padding-top: 60px; }
+.center-bar .icon-btn, .vi-voice-close { position: relative; color: var(--ink-2); padding: 8px; border-radius: 10px; }
+.center-bar .icon-btn:hover, .vi-voice-close:hover { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+.info-btn.dot::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px var(--page); }
+.center-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.center-page { width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 24px 32px; animation: page-in 0.25s ease-out; }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
+.center-page .two-cards { grid-template-columns: 1fr; }
+/* снизу запас больше высоты робота: последнее сообщение стоит над ним, а не под ним */
+.vi-thread { flex: 1; width: 100%; max-width: 780px; margin: 0 auto; padding: 28px 24px 108px; display: flex; flex-direction: column; gap: 20px; animation: page-in 0.25s ease-out; }
+
+/* Vi стоит на поле ввода справа: ступни — ровно на верхнем крае строки, а не в воздухе */
+.vi-dockbar { position: relative; z-index: 2; flex: none; width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px; }
+/* робот стоит на строке поверх переписки: места над строкой не занимает, ловит только свои нажатия */
+.vi-perch {
+  position: absolute; left: 16px; right: 16px; bottom: calc(100% - 1px); height: 84px; padding-right: 44px;
+  display: flex; justify-content: flex-end; align-items: flex-end; pointer-events: none;
+}
+.vi-bot { pointer-events: auto; }
+.vi-bot {
+  position: relative; z-index: 2; width: 84px; height: 84px; flex: none; padding: 0; border: 0; background: none;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  /* пальцем по роботу — гладят, а не прокручивают страницу */
+  touch-action: none;
+}
+.vi-bot:focus-visible { outline: 2px solid var(--blue); outline-offset: -6px; border-radius: 20px; }
+.vi-bot .robot { width: 100%; height: 100%; }
+.vi-bot .robot-shadow { display: none; }
+/* лампочка на антенне — цвет статуса бизнеса */
+.vi-perch.tone-risk .robot.idle .robot-bulb, .vi-perch.tone-risk .robot.happy .robot-bulb { fill: var(--yellow); }
+.vi-perch.tone-short .robot.idle .robot-bulb, .vi-perch.tone-short .robot.happy .robot-bulb { fill: var(--red); animation: bulb 1.6s ease-in-out infinite; }
+
+
+
+.vi-msg.user {
+  align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 18px 18px 6px 18px; background: var(--bubble);
+  font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; animation: fade 0.15s ease-out;
+}
+.vi-msg.vi { animation: fade 0.15s ease-out; }
+.vi-msg.vi .dots { padding: 6px 0 0; }
+.vi-msg-body { min-width: 0; }
+.vi-msg-body > p { margin: 0; font-size: 15.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.vi-cursor { display: inline-block; width: 8px; height: 8px; margin-left: 4px; border-radius: 50%; background: var(--ink); vertical-align: 0.05em; animation: bulb 0.8s ease-in-out infinite; }
+
+.vi-bills { list-style: none; margin: 12px 0 0; padding: 0; background: var(--paper); border-radius: 14px; overflow: hidden; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04); }
+.vi-bills li { position: relative; display: grid; grid-template-columns: 18px 52px 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; font-size: 14px; }
+.vi-bills li + li::before { content: ''; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--line); }
+.vi-bills .bill-mark { width: 18px; height: 18px; font-size: 11px; }
+.vi-bills li.risk .bill-mark { background: var(--yellow); color: var(--ink); }
+.vi-bills li.short .bill-mark { background: var(--red); color: #fff; }
+.vi-bill-date { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
+.vi-bill-name { font-weight: 600; line-height: 1.25; min-width: 0; }
+.vi-bill-name small, .vi-bill-sum small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-3); }
+.vi-bill-sum { text-align: right; font-weight: 700; white-space: nowrap; }
+.vi-bill-sum small { color: var(--red); font-weight: 600; }
+
+.vi-steps { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.vi-step { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: var(--paper); border-radius: 14px; padding: 10px 12px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04); transition: box-shadow 0.15s; }
+.vi-step:hover:not(:disabled) { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08); }
+.vi-step:disabled { opacity: 0.5; cursor: default; }
+.vi-step.on .step-check { background: var(--ink); color: #fff; }
+.vi-step-text { display: flex; flex-direction: column; min-width: 0; }
+.vi-step-text b { font-size: 14.5px; font-weight: 700; line-height: 1.3; }
+.vi-step-text small { font-size: 12.5px; color: var(--ink-3); }
+.vi-steps-now { display: flex; align-items: center; margin: 4px 0 0; font-size: 14px; font-weight: 700; }
+.vi-steps-now .tone-dot, .vi-status .tone-dot { margin: 0 8px 0 0; }
+
+.vi-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.vi-actions button {
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: var(--paper); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 999px; padding: 6px 12px; font-size: 13.5px; font-weight: 600; color: var(--ink);
+}
+.vi-actions button:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); }
+.vi-actions button.ask { background: rgba(0, 0, 0, 0.045); box-shadow: none; color: var(--ink-2); }
+.vi-actions button.ask:hover { background: rgba(0, 0, 0, 0.08); color: var(--ink); }
+
+.vi-welcome { margin: auto 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 8px 0; }
+.vi-welcome h2 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.vi-welcome p { margin: 0; max-width: 360px; color: var(--ink-2); font-size: 15px; }
+.vi-status { display: inline-flex; align-items: center; max-width: 100%; padding: 8px 14px; border-radius: 999px; background: var(--paper); font-size: 13.5px; font-weight: 600; text-align: left; }
+.vi-suggest { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 560px; margin-top: 10px; }
+.vi-suggest button {
+  border: 0; background: var(--paper); border-radius: 14px; padding: 12px 14px; text-align: left; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  font-size: 14px; font-weight: 500; line-height: 1.3; color: var(--ink-2); transition: box-shadow 0.15s, color 0.15s;
+}
+.vi-suggest button:hover { color: var(--ink); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08); }
+
+/* строка ввода: «+», текст, микрофон; кнопки внизу, если текст стал в несколько строк */
+.vi-composer {
+  position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; min-height: 58px; padding: 8px;
+  background: var(--paper); border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 22px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06); transition: box-shadow 0.2s, border-color 0.2s;
+}
+.vi-composer:focus-within { border-color: rgba(0, 0, 0, 0.16); box-shadow: 0 10px 36px rgba(0, 0, 0, 0.1); }
+.vi-composer:has(.vi-plus-menu) { z-index: 4; }
+.vi-composer textarea {
+  flex: 1; min-width: 0; align-self: center; max-height: 160px; border: 0; outline: none; resize: none; background: transparent; overflow-y: hidden;
+  padding: 9px 4px; font: inherit; font-size: 16px; line-height: 1.4; color: var(--ink);
+}
+.vi-composer textarea::placeholder { color: var(--ink-3); }
+.vi-tool { flex: none; width: 40px; height: 40px; border: 0; border-radius: 12px; background: transparent; color: var(--ink-2); display: grid; place-items: center; }
+.vi-tool:hover, .vi-tool.on { background: var(--paper-2); color: var(--ink); }
+.vi-send { flex: none; width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; display: grid; place-items: center; animation: fade 0.12s ease-out; }
+.vi-send:disabled { opacity: 0.4; cursor: default; }
+.vi-plus { position: relative; flex: none; }
+.vi-plus-menu {
+  position: absolute; left: -2px; bottom: calc(100% + 10px); min-width: 250px; padding: 6px; background: var(--pop);
+  border-radius: 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16); animation: fade 0.12s ease-out;
+}
+.vi-plus-menu button {
+  width: 100%; height: 40px; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0 12px; border-radius: 10px;
+  font-size: 15px; font-weight: 500; text-align: left; white-space: nowrap;
+}
+.vi-plus-menu button:hover, .vi-plus-menu button.on { background: var(--page); }
+.vi-plus-menu svg { flex: none; color: var(--ink-2); }
+.vi-plus-sep { display: block; height: 1px; margin: 6px 10px; background: var(--line); }
+/* «Все функции» → подменю сбоку: растёт вверх от пункта, нижним краем вровень с меню */
+.vi-plus-wrap { position: relative; }
+.vi-plus-menu.vi-plus-sub { left: calc(100% + 10px); bottom: -6px; min-width: 260px; }
+.vi-plus-go { margin-left: auto; transform: rotate(-90deg); }
+.vi-plus-menu .vi-plus-back { font-size: 13.5px; font-weight: 600; color: var(--ink-3); }
+.vi-plus-back svg { transform: rotate(90deg); }
+/* невидимый треугольник от курсора до подменю: ловит курсор, пока тот идёт к подменю наискосок */
+.vi-plus-aim { display: none; position: absolute; z-index: 2; }
+/* приложенный файл в строке ввода — первой строкой, над текстом */
+.vi-attach { flex: 0 0 100%; order: -1; display: flex; padding: 0 2px 2px; }
+.vi-file {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 32px; padding: 0 4px 0 10px; border-radius: 10px;
+  background: var(--page); font-size: 14px; color: var(--ink);
+}
+.vi-file > svg { flex: none; color: var(--ink-2); }
+.vi-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vi-file button { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--ink-2); }
+.vi-file button:hover { color: var(--ink); background: rgba(0, 0, 0, 0.06); }
+/* файл в отправленном сообщении */
+.vi-msg-file { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
+.vi-msg-file:not(:last-child) { margin-bottom: 4px; }
+
+/* раздел бизнеса прямо в переписке — живой блок под ответом Vi */
+.vi-widget { margin-top: 12px; padding: 18px 20px; background: var(--paper); border-radius: 18px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04); }
+.vi-widget > * + * { margin-top: 14px; }
+.vi-widget .page-title { font-size: 22px; }
+.vi-widget .page-narrow { max-width: none; }
+.vi-widget .settings > h1 { display: none; }
+.vi-widget .set-col:first-child > .set-block:first-child { margin-top: 0; }
+.vi-widget .card-block { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+.vi-widget .bills { margin-top: 14px; }
+.vi-widget .bills ul { box-shadow: none; }
+.vi-widget .card-list, .vi-widget .bank-grid button, .vi-widget .add-acc, .vi-widget .upload-done, .vi-widget .phrase-preview span { background: var(--page); }
+.vi-widget .settings-grid { grid-template-columns: 1fr; }
+@media (max-width: 640px) { .vi-widget { padding: 14px; margin-inline: -4px; } }
+.vi-dockbar { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+
+.vi-voice { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px calc(16px + env(safe-area-inset-bottom)); }
+.vi-voice .voice-said { font-size: 20px; }
+
+
+/* сводка справа: карточки как панель Environment у Claude — белая подложка без рамки, внутри просто строки */
+.info { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.drawer-body .info { padding: 0; }
+.info-card {
+  position: relative; padding: 12px 16px 10px; border-radius: 18px; background: var(--paper);
+  transition: background-color 0.8s ease, box-shadow 0.2s;
+}
+/* наведение — только ручка ⠿: карточку можно перетащить; тащим — приподнята тенью */
+.info-card.dragging { z-index: 5; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14); }
+/* о ней только что сказал Vi — подложка на миг голубеет и плавно возвращается */
+.info-card.hot { background: var(--blue-wash); transition-duration: 0.15s; }
+.info-card-head { display: flex; align-items: center; gap: 8px; min-height: 30px; padding-right: 26px; }
+.info-card-title { display: inline-flex; align-items: center; gap: 10px; min-width: 0; border: 0; background: none; padding: 2px 0; font-size: 16px; font-weight: 600; color: var(--ink); }
+.info-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info-card-title .nav-caret { flex: none; }
+.info-card-title .nav-caret { color: var(--ink-3); }
+.info-more { margin-left: auto; font-size: 13.5px; color: var(--ink-2); }
+/* итог свёрнутой карточки — у правого края; наведение — уступает место ручке */
+.info-peek { margin-left: auto; margin-right: -26px; font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; transition: opacity 0.15s; }
+.info-card:hover .info-peek, .info-card.dragging .info-peek { opacity: 0; }
+/* шкала «всего»: отрезок на банк */
+.bank-bar { display: flex; gap: 2px; height: 8px; margin-top: 8px; border-radius: 4px; overflow: hidden; }
+.bank-bar i { min-width: 4px; height: 100%; }
+.info-handle {
+  position: absolute; top: 13px; right: 10px; display: grid; padding: 4px 3px; border: 0; border-radius: 6px; background: none;
+  color: var(--ink-3); cursor: grab; touch-action: none; opacity: 0; transition: opacity 0.15s;
+}
+.info-card:hover .info-handle, .info-handle:focus-visible, .info-card.dragging .info-handle { opacity: 1; }
+.info-card.dragging .info-handle { cursor: grabbing; }
+.info-handle:hover { color: var(--ink); }
+@media (hover: none) {
+  .info-handle { opacity: 1; }
+  .info-peek { margin-right: 0; }
+  .info-card:hover .info-peek { opacity: 1; }
+}
+.info-card-body { margin-top: 4px; }
+.info-sub { margin: 6px 0 2px; font-size: 13px; color: var(--ink-3); }
+
+/* строка: иконка, текст, справа — значение или действие */
+.row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 40px; padding: 6px 0; font-size: 15px; color: var(--ink); text-align: left; }
+.row-btn { border: 0; background: none; }
+.row-btn:hover .row-text { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.row-btn.on .row-text { font-weight: 600; }
+.row-lead { flex: none; width: 22px; display: grid; place-items: center; color: var(--ink-2); }
+.row-lead .tone-dot { margin: 0; }
+.row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; overflow-wrap: anywhere; }
+.row-text b { font-weight: 600; }
+.row-text small { font-size: 12.5px; color: var(--ink-3); }
+.row-end { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: var(--ink-2); }
+.row-end b { font-weight: 600; color: var(--ink); }
+.row-end .pos { color: var(--green); }
+.row-end .zero { color: var(--red); }
+.row-end .muted { color: var(--ink-3); }
+.row-btn .row-end svg { color: var(--ink-3); }
+.row-tone { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--green); }
+.row-tone.risk { background: var(--yellow); color: var(--ink); }
+.row-tone.short { background: var(--red); }
+.row-x { border: 0; background: none; color: var(--ink-3); padding: 4px; display: grid; border-radius: 6px; }
+.row-x:hover { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+.row-group { margin-top: 6px; }
+/* система налогов — свой выпадающий список: значение просто текстом, без стрелок */
+.dd { position: relative; min-width: 0; }
+.dd-value { max-width: 100%; border: 0; background: none; padding: 0; font: inherit; font-size: 15px; color: var(--ink); text-align: left; }
+.dd-value:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.dd-menu { left: auto; right: -8px; top: calc(100% + 8px); z-index: 20; width: min(300px, calc(100vw - 48px)); }
+.row-switch { display: grid; padding: 4px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); }
+.row-switch:hover, .row-switch[aria-expanded='true'] { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+/* изменения: сумма со знаком — зелёный «+» поступление, красный «−» расход; отмена — с подтверждением */
+.chg-in, .row-end .chg-in { color: var(--green); }
+.chg-out, .row-end .chg-out { color: var(--red); }
+.chg-peek { display: inline-flex; gap: 8px; }
+.chg-confirm { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+.chg-confirm button { border: 0; border-radius: 8px; padding: 4px 10px; font-size: 13.5px; font-weight: 600; }
+.chg-yes { background: var(--red); color: #fff; }
+.chg-no { background: var(--page); color: var(--ink); }
+/* название — нажать и откроется меню бизнеса (там же «Переименовать»); система налогов — выбрать прямо в строке */
+.row-name { max-width: 100%; border: 0; background: none; padding: 0; font-size: 15px; color: var(--ink); text-align: left; }
+.row-name:hover b, .row-name[aria-expanded='true'] b { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.row-input { width: 100%; margin-left: -6px; padding: 3px 6px; border: 0; border-radius: 6px; outline: 2px solid var(--ink); background: var(--paper); font: inherit; font-weight: 600; color: var(--ink); }
+
+/* платежи по месяцам: заголовок месяца сворачивает его таймлайн */
+.pay-month-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 4px 0; border: 0; background: none;
+  font-size: 14px; font-weight: 600; color: var(--ink-2); text-align: left;
+}
+.pay-month-head:hover { color: var(--ink); }
+.pay-month-head .nav-caret { color: var(--ink-3); }
+/* платежи месяца таймлайном: оплачено — зелёная галочка, ещё нет — пустой кружок */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.tl-item { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 7px 0; font-size: 14.5px; }
+.tl-item::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.tl-item:first-child::before { top: 50%; }
+.tl-item:last-child::before { bottom: 50%; }
+.tl-item:only-child::before { display: none; }
+.tl-mark {
+  position: relative; z-index: 1; width: 22px; height: 22px; padding: 0; border: 2px solid var(--line-2); border-radius: 50%;
+  background: var(--paper); color: #fff; display: grid; place-items: center; transition: background 0.15s, border-color 0.15s;
+}
+.tl-mark:hover:not(:disabled) { border-color: var(--ink-3); }
+.tl-mark:disabled { cursor: default; }
+.tl-item.risk:not(.done) .tl-mark { border-color: var(--yellow); }
+.tl-item.short:not(.done) .tl-mark { border-color: var(--red); }
+.tl-item.done .tl-mark { background: var(--green); border-color: var(--green); }
+.tl-name { font-weight: 600; line-height: 1.25; }
+.tl-name small, .tl-sum small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.tl-sum { text-align: right; font-weight: 600; white-space: nowrap; }
+.tl-sum small { color: var(--red); font-weight: 600; }
+.tl-item.done .tl-name, .tl-item.done .tl-sum { color: var(--ink-3); }
+.info .switcher-menu { left: -8px; top: calc(100% - 2px); }
+/* платежи и шаги в карточке — тоже просто строки */
+.info-card .vi-bills { margin: 0; background: none; box-shadow: none; border-radius: 0; }
+.info-card .vi-bills li { padding: 8px 0; grid-template-columns: 20px 52px 1fr auto; }
+.info-card .vi-bills li + li::before { display: none; }
+.info-card .step { padding: 6px 0; }
+.info-card .step-check { width: 24px; height: 24px; border-width: 1.5px; font-size: 12px; }
+.info-card .step-text b { font-size: 14.5px; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .center-page { padding: 18px 16px 28px; }
+  .vi-thread { padding: 20px 16px 88px; }
+  .vi-dockbar { padding-inline: 10px; }
+  .vi-perch { left: 10px; right: 10px; height: 68px; padding-right: 24px; }
+  .vi-bot { width: 68px; height: 68px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .info-card.hot, .nav-sheet > aside, .vi-perch.tone-short .robot-bulb, .center-page, .vi-thread,
+  .robot-spiral, .robot-signal circle { animation: none; }
+}
+
+/* голосовой режим: выйти — крестик в углу */
+.vi-voice { position: relative; }
+.vi-voice-close { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 1; display: grid; border: 0; background: none; }

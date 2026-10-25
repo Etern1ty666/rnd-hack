@@ -41,7 +41,7 @@ export function Settings({ s, onChange, onReset, onRemove, taxes }: Props) {
                 <span>Форма</span>
                 <div className="seg">
                   {(['ИП', 'ООО'] as const).map((f) => (
-                    <button key={f} className={s.form === f ? 'on' : ''} onClick={() => set({ form: f, regime: f === 'ООО' && s.regime === 'psn' ? 'auto' : s.regime })}>{f}</button>
+                    <button key={f} className={s.form === f ? 'on' : ''} onClick={() => set({ form: f, regime: f === 'ООО' && s.regime === 'psn' ? 'usn6' : s.regime })}>{f}</button>
                   ))}
                 </div>
               </div>

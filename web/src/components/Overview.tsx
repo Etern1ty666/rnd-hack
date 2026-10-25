@@ -10,7 +10,7 @@ export interface OverviewItem {
   ev: Evaluation
 }
 
-/** Сводка по всем бизнесам: где проблема и что платить первым. Суммы и список бизнесов — слева. */
+/** Сводка по всем бизнесам: где проблема и что платить первым. Суммы и список бизнесов — справа. */
 export function Overview({ items }: { items: OverviewItem[] }) {
   const free = items.reduce((s, i) => s + i.ev.free, 0)
   const worst = items.find((i) => i.ev.status.tone === 'short') ?? items.find((i) => i.ev.status.tone === 'risk')
@@ -28,7 +28,7 @@ export function Overview({ items }: { items: OverviewItem[] }) {
         </span>
         <div>
           <b>{worst ? `${worst.name}: ${worst.ev.status.title.charAt(0).toLowerCase()}${worst.ev.status.title.slice(1)}` : 'Во всех бизнесах на платежи хватает'}</b>
-          <span>{worst ? worst.ev.status.sub : `Свободно ${compact(free)}\\u00a0₽ на всех счетах.`}</span>
+          <span>{worst ? worst.ev.status.sub : `Свободно ${compact(free)}\u00a0₽ на всех счетах.`}</span>
         </div>
       </div>
       <Bills bills={bills} title="Ближайшие платежи" />

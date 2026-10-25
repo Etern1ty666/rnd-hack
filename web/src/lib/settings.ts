@@ -50,7 +50,8 @@ export function defaultSettings(data: CompanyData): BizSettings {
     name: demo?.name ?? (q ? q[1] : data.company.name),
     industry: data.company.industry,
     form: data.company.legalForm === 'ИП' ? 'ИП' : 'ООО',
-    regime: 'auto',
+    // какая-то система налогов выбрана всегда; чаще всего у малого бизнеса — УСН «Доходы»
+    regime: 'usn6',
     accounts: [
       { id: 'main', bank: data.company.bank ?? demo?.main ?? 'other', name: 'Расчётный счёт', balance: data.balanceExact ?? data.balanceNow, main: true, inForecast: true },
       ...(demo?.extra ?? []).map((a, i) => ({ ...a, id: `demo${i}`, inForecast: true })),
@@ -67,9 +68,7 @@ export function applySettings(data: CompanyData, s: BizSettings): CompanyData {
   const extra = s.accounts.filter((a) => !a.main && a.inForecast).reduce((sum, a) => sum + a.balance, 0)
   const mainOn = s.accounts.find((a) => a.main)?.inForecast ?? true
   const shift = extra - (mainOn ? 0 : data.balanceNow)
-  const events = s.regime === 'auto'
-    ? data.events
-    : [...data.events.filter((e) => e.cat !== 'tax'), ...taxEvents(data, s.regime, s.form)].sort((a, b) => a.date.localeCompare(b.date))
+  const events = [...data.events.filter((e) => e.cat !== 'tax'), ...taxEvents(data, s.regime, s.form)].sort((a, b) => a.date.localeCompare(b.date))
   return {
     ...data,
     balanceNow: data.balanceNow + shift,

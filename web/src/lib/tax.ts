@@ -6,7 +6,7 @@ import { INCOME_CATS } from './categories'
  * сколько и когда платить, — считаем за него из выписки:
  * выручка и расходы по месяцам → сумма налога → дата платежа (ЕНП 28-го, АУСН 25-го).
  */
-export type RegimeId = 'auto' | 'usn6' | 'usn15' | 'ausn' | 'psn' | 'osno' | 'eshn'
+export type RegimeId = 'usn6' | 'usn15' | 'ausn' | 'psn' | 'osno' | 'eshn'
 
 export interface Regime {
   id: RegimeId
@@ -16,7 +16,6 @@ export interface Regime {
 }
 
 export const REGIMES: Regime[] = [
-  { id: 'auto', name: 'Не знаю — определите сами', hint: 'берём, сколько вы платили раньше' },
   { id: 'usn6', name: 'УСН «Доходы» 6%', hint: '6% с выручки, раз в квартал' },
   { id: 'usn15', name: 'УСН «Доходы минус расходы» 15%', hint: '15% с прибыли, раз в квартал' },
   { id: 'ausn', name: 'АУСН 8%', hint: '8% с выручки каждый месяц, без взносов' },
