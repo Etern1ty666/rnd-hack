@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void
 }
 
-const SAMPLE = '/samples/invoice_qr.png'
+const SAMPLE = import.meta.env.BASE_URL + 'samples/invoice_qr.png'
 const hasCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 
 /** Счёт от поставщика → QR-код → платёж в прогнозе. Получателя и сумму берём из кода, дату выбирает человек. */

@@ -53,7 +53,7 @@ export function AccountPage({ a, asOf, onChange, onDelete }: {
   )
 }
 
-const SAMPLES: Partial<Record<BankId, string>> = { centrinvest: '/samples/centrinvest_1c.txt', sber: '/samples/sber_1c.txt' }
+const SAMPLES: Partial<Record<BankId, string>> = { centrinvest: import.meta.env.BASE_URL + 'samples/centrinvest_1c.txt', sber: import.meta.env.BASE_URL + 'samples/sber_1c.txt' }
 
 /** Новый счёт: выбрать банк → загрузить выписку или ввести остаток. */
 export function NewAccount({ onAdd }: { onAdd: (a: Account) => void }) {

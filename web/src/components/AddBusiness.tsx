@@ -17,7 +17,7 @@ const UPLOAD_BANKS: BankId[] = ['centrinvest', 'sber', 'tbank', 'alfa', 'vtb', '
 /** Где взять файл: название интернет-банка для бизнеса. */
 const DBO: Partial<Record<BankId, string>> = { centrinvest: '«Бизнес-онлайн»', sber: '«СберБизнесе»' }
 /** Примеры выписок (сгенерированы из датасета кейса скриптом tools/to_1c_format.py). */
-const SAMPLES: Partial<Record<BankId, string>> = { centrinvest: '/samples/centrinvest_1c.txt', sber: '/samples/sber_1c.txt' }
+const SAMPLES: Partial<Record<BankId, string>> = { centrinvest: import.meta.env.BASE_URL + 'samples/centrinvest_1c.txt', sber: import.meta.env.BASE_URL + 'samples/sber_1c.txt' }
 
 type State =
   | { step: 'idle' }
