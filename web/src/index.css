@@ -663,11 +663,12 @@ input, select, textarea { background-color: transparent; }
 /* снизу запас больше высоты робота: последнее сообщение стоит над ним, а не под ним */
 .vi-thread { flex: 1; width: 100%; max-width: 780px; margin: 0 auto; padding: 28px 24px 108px; display: flex; flex-direction: column; gap: 22px; animation: page-in 0.25s ease-out; }
 
-/* Vi стоит на поле ввода справа: ступни — ровно на верхнем крае строки, а не в воздухе */
-.vi-dockbar { position: relative; z-index: 2; flex: none; width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px calc(16px + env(safe-area-inset-bottom)); }
+/* Vi стоит на поле ввода справа: ступни — ровно на верхнем крае строки, а не в воздухе.
+ * Над строкой — полоса цвета фона: страница обрезается выше неё, а не по скруглённым углам строки. */
+.vi-dockbar { position: relative; z-index: 2; flex: none; width: 100%; max-width: 780px; margin: 0 auto; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
 /* робот стоит на строке поверх переписки: места над строкой не занимает, ловит только свои нажатия */
 .vi-perch {
-  position: absolute; left: 16px; right: 16px; bottom: calc(100% - 1px); height: 84px; padding-right: 44px;
+  position: absolute; left: 16px; right: 16px; bottom: calc(100% - 13px); height: 84px; padding-right: 44px;
   display: flex; justify-content: flex-end; align-items: flex-end; pointer-events: none;
 }
 .vi-bot {
