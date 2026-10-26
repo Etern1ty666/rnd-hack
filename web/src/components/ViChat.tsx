@@ -45,14 +45,12 @@ interface Props {
 }
 
 const KEEP = 60
-// что можно открыть из «+» в строке ввода — разделы бизнеса прямо в переписке
+// что можно открыть из «+» в строке ввода — разделы бизнеса прямо в переписке.
+// Платежи и расходы — отдельные страницы в меню, новый счёт — в карточке «Счета»: здесь их не повторяем
 const TOOLS: { w: ViWidget; label: string; icon: IconName }[] = [
-  { w: 'payments', label: 'Платежи', icon: 'calendar' },
   { w: 'whatif', label: 'Что если', icon: 'spark' },
-  { w: 'money', label: 'Расходы', icon: 'percent' },
   { w: 'trust', label: 'Точность прогноза', icon: 'shield' },
   { w: 'settings', label: 'Настройки бизнеса', icon: 'gear' },
-  { w: 'newAccount', label: 'Новый счёт', icon: 'bank' },
 ]
 let seq = 0
 const uid = () => `m${Date.now().toString(36)}${(seq++).toString(36)}`
@@ -308,8 +306,11 @@ export function ViChat(props: Props) {
         ) : (
           <div className="vi-thread" aria-live="polite">
             {msgs.length === 0 && pending == null ? (
+              // новый чат начинается с ответа на главный вопрос — хватит ли денег; подсказки — что делать дальше
               <div className="vi-welcome">
-                <h2>{greeting()}! Я&nbsp;Vi</h2>
+                <p className="vi-hello">{greeting()}! Я&nbsp;Vi</p>
+                <h2 className="vi-verdict"><span className={`tone-dot ${ev.status.tone}`} />{ev.status.title}</h2>
+                <p className="vi-verdict-sub">{ev.status.sub}</p>
                 <div className="vi-suggest">
                   {viSuggestions(ev).map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}
                 </div>

@@ -6,12 +6,13 @@ import { compact, rub } from '../lib/format'
 /** Цвет закреплён за категорией, а не за местом в рейтинге — при смене вкладки не перекрашивается. */
 const OUT: [CatKey, string][] = [
   ['suppliers', '#2a78d6'], ['salary', '#eb6834'], ['owner_out', '#1baf7a'], ['tax', '#eda100'],
-  ['rent', '#e87ba4'], ['utilities', '#008300'], ['services', '#6250d6'],
+  ['rent', '#e87ba4'], ['utilities', '#2f9e5b'], ['services', '#7466e0'],
 ]
 const IN: [CatKey, string][] = [
   ['card', '#2a78d6'], ['sbp', '#eb6834'], ['cash', '#1baf7a'], ['clients', '#eda100'], ['marketplace', '#e87ba4'],
 ]
-const OTHER = '#b9b8b2'
+// цвета различимы и на белой, и на тёмной карточке; «прочее» — серым темы
+const OTHER = 'var(--line-2)'
 
 /** «Операции за 90 дней»: кольцо и подписи-таблетки, как в банковском приложении. */
 export function OpsDonut({ data }: { data: CompanyData }) {
@@ -64,7 +65,7 @@ export function OpsDonut({ data }: { data: CompanyData }) {
               const len = (r.v / total) * C
               const seg = (
                 <circle
-                  key={r.key} cx={90} cy={90} r={R} fill="none" stroke={r.color} strokeWidth={hover === r.key ? W + 4 : W}
+                  key={r.key} cx={90} cy={90} r={R} fill="none" style={{ stroke: r.color }} strokeWidth={hover === r.key ? W + 4 : W}
                   strokeDasharray={`${Math.max(len - gap, 0.5)} ${C}`} strokeDashoffset={-acc}
                   onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}
                   opacity={hover && hover !== r.key ? 0.35 : 1}

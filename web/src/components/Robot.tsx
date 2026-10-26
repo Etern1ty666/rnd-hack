@@ -17,10 +17,11 @@ export interface RobotLook {
   bezel?: [number, number, number]
   screenR?: number
   ears?: 'bar' | 'none' | 'knob' | 'phones'
-  /** уши: ширина, высота и на сколько торчат за край головы */
+  /** уши: ширина, высота, на сколько торчат за край головы и где их центр — доля высоты головы от макушки */
   earW?: number
   earH?: number
   earOut?: number
+  earAt?: number
   antenna?: 'single' | 'none' | 'double' | 'side'
   antennaLen?: number
   antennaW?: number
@@ -34,16 +35,31 @@ export interface RobotLook {
   body?: [string, string]
   trim?: string
   screen?: string
+  /** антенна и лампочка в покое; пусто — антенна цвета ушей, лампочка зелёная. Состояния всё равно красят лампочку по-своему */
+  antennaColor?: string
+  bulbColor?: string
+  /** цвет свечения вокруг глаз; сами глаза всегда белые */
+  glow?: string
+  /** блик по верхнему краю головы и отсвет на стекле экрана: непрозрачность, 0 — нет */
+  rim?: number
+  sheen?: number
   /** улыбка под глазами */
   smile?: boolean
 }
 type Look = Required<RobotLook>
 
+/**
+ * Пропорции: глаза и уши — на одной линии, ровно посередине головы; рамка экрана везде одной толщины
+ * (скругление экрана 32 = скругление головы 48 − рамка 16), снизу — подбородок потолще.
+ * Уши той же высоты, что глаза; глаз шириной с промежуток между глазами.
+ */
 const VI: Look = {
-  w: 160, h: 150, r: 46, taper: 0, bezel: [16, 18, 26], screenR: 32,
-  ears: 'bar', earW: 16, earH: 44, earOut: 10, antenna: 'single', antennaLen: 18, antennaW: 5, bulb: 8,
-  eyes: 'capsule', eyeW: 22, eyeH: 52, gap: 48, eyeDy: 0,
-  body: ['#3a3a3e', '#141416'], trim: '#2a2a2d', screen: '#09090a', smile: false,
+  w: 160, h: 152, r: 48, taper: 0, bezel: [16, 16, 24], screenR: 32,
+  ears: 'bar', earW: 16, earH: 52, earOut: 10, earAt: 0.5, antenna: 'single', antennaLen: 20, antennaW: 4, bulb: 10,
+  eyes: 'capsule', eyeW: 24, eyeH: 52, gap: 48, eyeDy: 6,
+  // цвета — из темы (index.css): в тёмной корпус чуть светлее фона и блик ярче, иначе робот тонет в темноте
+  body: ['var(--bot-top)', 'var(--bot-bottom)'], trim: 'var(--bot-trim)', screen: 'var(--bot-screen)', antennaColor: '', bulbColor: '', glow: '#fff',
+  rim: 0.14, sheen: 0.06, smile: false,
 }
 
 interface Props {
@@ -77,15 +93,36 @@ function spring(s: Spring, target: number, k: number, d: number, dt: number) {
 }
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
-/** Глаза-спирали, когда оглушён. */
-function spiral(cx: number, cy: number) {
+/** Глаза-спирали, когда оглушён: аккуратнее глаза по размеру, левая и правая закручены зеркально. */
+function spiral(cx: number, cy: number, dir: number) {
   let d = ''
-  for (let i = 0; i <= 48; i++) {
-    const a = (i / 48) * Math.PI * 4
-    const r = 2 + a * 1.55
-    d += `${i ? 'L' : 'M'}${(cx + r * Math.cos(a)).toFixed(1)} ${(cy + r * Math.sin(a)).toFixed(1)}`
+  for (let i = 0; i <= 44; i++) {
+    const a = (i / 44) * Math.PI * 3.5
+    const r = 1.5 + a * 1.25
+    d += `${i ? 'L' : 'M'}${(cx + dir * r * Math.cos(a)).toFixed(1)} ${(cy + r * Math.sin(a)).toFixed(1)}`
   }
   return d
+}
+
+// моргание: веки падают быстро, поднимаются медленнее; второй глаз отстаёт на пару сотых секунды
+const BLINK_CLOSE = 70
+const BLINK_HOLD = 40
+const BLINK_OPEN = 125
+const BLINK_LAG = [8, 22]
+/** Насколько закрыто веко через e мс после начала моргания: 0 — открыто, 1 — закрыто. */
+function lidAt(e: number) {
+  if (e < 0) return 0
+  if (e < BLINK_CLOSE) {
+    const k = e / BLINK_CLOSE
+    return k * k * (3 - 2 * k)
+  }
+  e -= BLINK_CLOSE + BLINK_HOLD
+  if (e < 0) return 1
+  if (e < BLINK_OPEN) {
+    const k = 1 - e / BLINK_OPEN
+    return k * k
+  }
+  return 0
 }
 
 /** Многоугольник со скруглёнными углами — для головы-трапеции. */
@@ -106,7 +143,6 @@ function roundedPoly(pts: [number, number][], r: number) {
 
 // низ головы — на строке; вокруг его середины он качается, как неваляшка
 const BOTTOM = 188
-const BLINK_MS = 170
 const GRAVITY = 1500
 // злость по номеру удара подряд: первый — только «ой», второй — хмурится, третий — «💢», четвёртый — кипит
 const ANGER = [0, 0, 0.45, 0.75, 1]
@@ -118,12 +154,9 @@ const HEART = 'M0 6C-8 0-7-7-3.5-7C-1.6-7-.4-5.8 0-4.6C.4-5.8 1.6-7 3.5-7C7-7 8 
 const QUIET_MS = 3000
 const FIRST_WAIT = [7000, 12000]
 const NEXT_WAIT = [12000, 25000]
-const NOTE = 'M2 4V-9h1.4c.3 3 4.6 3.6 4.4 8.2c-.8-2.6-2.4-3.6-4.4-3.8V4ZM-3.4 4a3.4 2.6 0 1 0 6.8 0a3.4 2.6 0 1 0-6.8 0Z'
 /** Что вылетает на выходках: форма, цвета, размер и сколько живёт. */
 const BITS: Record<Bit, { d: string; fill: string; stroke: string; w: number; k: number; ms: number }> = {
   z: { d: 'M-5-5.5H5L-5 5.5H5', fill: 'none', stroke: 'var(--ink-3)', w: 2.6, k: 1.5, ms: 1900 },
-  note: { d: NOTE, fill: 'var(--ink-2)', stroke: 'none', w: 0, k: 1.5, ms: 1600 },
-  bubble: { d: 'M-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0Z', fill: 'rgba(42, 120, 214, 0.1)', stroke: 'var(--blue)', w: 1.8, k: 1.3, ms: 1150 },
   spark: { d: 'M0-6L1.6-1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6-1.6Z', fill: '#ffb300', stroke: 'none', w: 0, k: 1.2, ms: 650 },
 }
 const BIT_SLOTS = 8
@@ -149,7 +182,7 @@ function geometry(L: Look) {
     x0, y0, topHalf, halfAt, bx, sy0, sh, ey, eyeH, by, antennas,
     eyeTop: ey - eyeH / 2,
     eyeX: [110 - L.gap / 2, 110 + L.gap / 2],
-    earY: y0 + L.h * 0.52,
+    earY: y0 + L.h * L.earAt,
     bulbY: by - L.antennaLen - (L.bulb - 2),
     vein: [110 + halfAt(sy0) - bx - 16, sy0 + 16],
     halfFlat: L.w / 2 - L.r,
@@ -186,12 +219,13 @@ function brows(L: Look, G: Geo, depth: number) {
  * Гладят — плавно водят курсором по голове: жмурится от удовольствия «^ ^», ластится к руке,
  * антенна гнётся под ладонью, чуть мурчит и пускает сердечки; злость проходит.
  * Ничего не происходит — время от времени что-нибудь выкидывает от скуки (lib/fidgets.ts): подмигивает,
- * напевает, икает, клюёт носом, чихает, ловит взглядом муху, перезагружается. Редкие выпадают реже.
+ * клюёт носом, чихает, ловит взглядом муху, перезагружается. Редкие выпадают реже.
+ * Глаза живые: моргают не строго разом, на резком повороте взгляда иногда моргают, на месте чуть подрагивают.
  */
 export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, look, puppet = false, pointer, hand }: Props) {
   const L = useMemo<Look>(() => ({ ...VI, ...look }), [look])
   const G = useMemo(() => geometry(L), [L])
-  const spirals = useMemo(() => G.eyeX.map((cx) => spiral(cx, G.ey)), [G])
+  const spirals = useMemo(() => G.eyeX.map((cx, k) => spiral(cx, G.ey, k ? 1 : -1)), [G])
   const tilt = useRef<SVGGElement>(null)
   const ants = useRef<SVGGElement>(null)
   const ears = useRef<SVGGElement>(null)
@@ -243,6 +277,10 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
     let nextHeart = 0
     // моргают вразнобой, даже когда роботов много
     let blinkAt = -1e9, nextBlink = last + 600 + Math.random() * 2000, nextGlance = 0
+    // на сколько каждый глаз отстаёт в этом моргании: какой первый — каждый раз по-разному
+    let lag = [0, 0]
+    // взгляд никогда не стоит мёртво: мелкие подёргивания вокруг точки, куда смотрит
+    let mx = 0, my = 0, nextMicro = 0
     let shown = shapeOf(moodRef.current), swapping = false
     let prevMood = moodRef.current
     let lastPush = pushRef.current?.n ?? 0
@@ -254,6 +292,11 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
     let lastFidget = fidgetRef.current?.n ?? 0
     const between = ([a, b]: number[]) => a + Math.random() * (b - a)
     let stillFrom = last, idleFrom = last, wait = between(FIRST_WAIT), wasQuiet = true
+    const blink = (t: number) => {
+      blinkAt = t
+      const d = between(BLINK_LAG)
+      lag = Math.random() < 0.5 ? [0, d] : [d, 0]
+    }
     // куда садится муха — считается каждый кадр по антенне и наклону головы
     let perch: [number, number] = [110, G.y0]
     const bits: ({ kind: Bit; t0: number; x: number; y: number; dx: number; dy: number; size: number } | null)[] = Array(BIT_SLOTS).fill(null)
@@ -262,7 +305,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       fid = { kind, t0: t, s, beats: FIDGETS[kind].beats(s), beat: 0, forced }
       prevFid = kind
     }
-    // «Z» и ноты — над макушкой сбоку, пузырьки — у края головы, искры — веером с лица
+    // «Z» — над макушкой сбоку, искры — веером с лица
     const spawn = (kind: Bit, dir: number, size: number, i: number, n: number, t: number) => {
       const k = bits.findIndex((b) => !b)
       const el = sprites.current?.children[k] as SVGPathElement | undefined
@@ -275,9 +318,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       const a = (i - (n - 1) / 2) * 0.5 - 0.3
       const r = 70 + Math.random() * 25
       const at = kind === 'z' ? { x: 110 + dir * L.w * 0.3, y: G.y0 - 4, dx: dir * 28, dy: -52 }
-        : kind === 'note' ? { x: 110 + dir * L.w * 0.32, y: G.y0, dx: dir * 24, dy: -48 }
-          : kind === 'bubble' ? { x: 110 + dir * L.w * 0.38, y: G.y0 + 14, dx: dir * 12, dy: -46 }
-            : { x: 110 + dir * L.w * 0.18, y: G.ey + 16, dx: dir * Math.cos(a) * r, dy: Math.sin(a) * r }
+        : { x: 110 + dir * L.w * 0.18, y: G.ey + 16, dx: dir * Math.cos(a) * r, dy: Math.sin(a) * r }
       bits[k] = { kind, t0: t, size, ...at }
     }
 
@@ -421,15 +462,19 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
         setShape('ouch')
       } else if (want !== shown && !swapping) {
         swapping = true
-        blinkAt = t
+        blink(t)
       }
 
       // куда смотреть
       const look = caret ?? (ptr && t - ptr.at < 2500 ? ptr : null)
       let lean = 0
-      if (m === 'dizzy' || t < ouchUntil) {
+      if (t < ouchUntil) {
         tx = 0
         ty = 0
+      } else if (m === 'dizzy') {
+        // оглушён — глаза плывут по кругу
+        tx = Math.cos(t / 190) * 4
+        ty = Math.sin(t / 190) * 3
       } else if (startle > 0.2) {
         tx = startleDir * 12
         ty = -2
@@ -456,18 +501,33 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
         if (caret && m === 'idle') lean = clamp(dx * 0.02, -7, 7) * clamp(1 - (t - caret.at - 1800) / 900, 0, 1)
       } else if (t > nextGlance) {
         const center = Math.random() < 0.4
-        tx = center ? 0 : (Math.random() * 2 - 1) * 12
-        ty = center ? 0 : (Math.random() * 2 - 1) * 7
+        const nx = center ? 0 : (Math.random() * 2 - 1) * 12
+        const ny = center ? 0 : (Math.random() * 2 - 1) * 7
+        // далеко перевёл взгляд — иногда моргает на ходу, как люди
+        if (Math.hypot(nx - tx, ny - ty) > 10 && Math.random() < 0.35 && !swapping && !fid && t - blinkAt > 700) {
+          blink(t)
+          nextBlink = Math.max(nextBlink, t + 1500)
+        }
+        tx = nx
+        ty = ny
         nextGlance = t + 900 + Math.random() * 2200
       }
+      // мелкие подёргивания взгляда: едва заметно, но глаза не застывают картинкой
+      if (t > nextMicro) {
+        const still = m === 'dizzy' || t < ouchUntil || calm
+        mx = still ? 0 : (Math.random() * 2 - 1) * 0.9
+        my = still ? 0 : (Math.random() * 2 - 1) * 0.6
+        nextMicro = t + 350 + Math.random() * 900
+      }
       const ease = 1 - Math.exp(-dt * 14)
-      gx += (tx - gx) * ease
-      gy += (ty - gy) * ease
+      gx += (tx + mx - gx) * ease
+      gy += (ty + my - gy) * ease
 
       // наклон: слушает — к человеку, думает — склонил голову и чуть покачивает, пишут — к тексту;
       // злится — упирается навстречу толкнувшему; гладят — ластится к ладони и тянется за ней
       const lean0 = (m === 'listening' ? -5 : m === 'thinking' ? 3 + Math.sin(t / 700) * 1.5 : lean)
         - hitDir * anger * 5 + petAmt * (petX * 6 + clamp(petVx * 1.5, -3, 3)) + (P.lean ?? 0)
+        + (m === 'dizzy' && !calm ? Math.sin(t / 380) * 3 : 0)
       spring(rot, lean0, 90, 6, dt)
       rot.x = clamp(rot.x, -24, 24)
       spring(shift, 0, 70, 10, dt)
@@ -523,30 +583,37 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
       screen.current?.setAttribute('transform', `translate(${(gx * 0.18).toFixed(2)} ${(gy * 0.12).toFixed(2)})`)
       ears.current?.setAttribute('transform', `translate(${(-gx * 0.1).toFixed(2)} 0)`)
 
-      // моргание: закрыть → (сменить выражение) → открыть
+      // моргание: закрыть → (сменить выражение) → открыть; каждый глаз — со своим запаздыванием
       if (t > nextBlink && !swapping && !fid) {
-        blinkAt = t
+        blink(t)
         // иногда моргает дважды подряд
-        nextBlink = t + (Math.random() < 0.2 ? 280 : (m === 'listening' ? 3500 : 1800) + Math.random() * 3000)
+        nextBlink = t + (Math.random() < 0.2 ? 300 : (m === 'listening' ? 3500 : 1800) + Math.random() * 3000)
       }
-      const bp = (t - blinkAt) / BLINK_MS
-      const lid = bp < 0 || bp >= 1 ? 0 : bp < 0.4 ? bp / 0.4 : bp < 0.55 ? 1 : 1 - (bp - 0.55) / 0.45
-      if (swapping && bp >= 0.4) {
+      const shut = [lidAt(t - blinkAt - lag[0]), lidAt(t - blinkAt - lag[1])]
+      // выражение меняется, когда закрыты оба глаза
+      if (swapping && t - blinkAt >= BLINK_CLOSE * 0.8 + Math.max(lag[0], lag[1])) {
         shown = want === 'ouch' ? shapeOf(m) : want
         swapping = false
         setShape(shown)
       }
-      const ey = (1 - lid * 0.92) * (P.lid ?? 1) * (m === 'listening' ? 1 + (level.current ?? 0) * 0.25 : 1)
-      eyes.current?.setAttribute('transform', `translate(${gx.toFixed(2)} ${gy.toFixed(2)})`)
+      const ey = (P.lid ?? 1) * (m === 'listening' ? 1 + (level.current ?? 0) * 0.25 : 1)
+      // моргая, глаза чуть опускаются — веко тянет их за собой
+      const dip = Math.max(shut[0], shut[1]) * 1.5
+      eyes.current?.setAttribute('transform', `translate(${gx.toFixed(2)} ${(gy + dip).toFixed(2)})`)
       lids.current?.setAttribute('transform', `translate(110 ${G.ey}) scale(1 ${ey.toFixed(3)}) translate(-110 ${-G.ey})`)
       // выходки: подмигнуть одним глазом, скосить глаза к переносице, вытаращить; на перезагрузке — погасить
+      // закрываясь, глаз чуть раздаётся вширь — мягкий, а не жестяная шторка
       const pair = lids.current?.children
-      if (pair?.length === 2) {
+      if (pair?.length) {
         const pop = P.pop ?? 1
-        for (let i = 0; i < 2; i++) {
-          const cx = G.eyeX[i]
-          const dx = (i ? -1 : 1) * (P.cross ?? 0)
-          pair[i].setAttribute('transform', `translate(${(cx + dx).toFixed(2)} ${G.ey}) scale(${pop.toFixed(3)} ${((P.eye?.[i] ?? 1) * pop).toFixed(3)}) translate(${-cx} ${-G.ey})`)
+        const one = pair.length !== 2
+        for (let i = 0; i < Math.min(2, pair.length); i++) {
+          const cx = one ? 110 : G.eyeX[i]
+          const dx = one ? 0 : (i ? -1 : 1) * (P.cross ?? 0)
+          const k = one ? Math.max(shut[0], shut[1]) : shut[i]
+          const sx = pop * (1 + k * 0.08)
+          const sy = (1 - k * 0.92) * (one ? 1 : P.eye?.[i] ?? 1) * pop
+          pair[i].setAttribute('transform', `translate(${(cx + dx).toFixed(2)} ${G.ey}) scale(${sx.toFixed(3)} ${sy.toFixed(3)}) translate(${-cx} ${-G.ey})`)
         }
       }
       lids.current?.setAttribute('opacity', (P.on ?? 1).toFixed(2))
@@ -585,7 +652,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
         el.setAttribute('opacity', (k < 0.65 ? 1 : 1 - (k - 0.65) / 0.35).toFixed(3))
         el.setAttribute('transform', `translate(${(h.x + Math.sin(k * Math.PI * 2) * 5).toFixed(1)} ${(G.y0 + 8 - rise * 52).toFixed(1)}) scale(${sc.toFixed(3)})`)
       })
-      // выходки: «Z», ноты и пузырьки всплывают и тают, искры разлетаются веером
+      // выходки: «Z» всплывают и тают, искры разлетаются веером
       sprites.current?.querySelectorAll<SVGPathElement>('path').forEach((el, i) => {
         const b = bits[i]
         const k = b ? (t - b.t0) / BITS[b.kind].ms : 1
@@ -604,15 +671,6 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
           qx += Math.sin(k * Math.PI * 2) * 4
           sc *= 0.6 + k * 0.8
           turn = -12 + k * 20
-        } else if (b.kind === 'note') {
-          qx += Math.sin(k * Math.PI * 3) * 5
-          sc *= Math.min(1, k * 6)
-          turn = Math.sin(k * 9) * 15
-        } else if (b.kind === 'bubble') {
-          // в конце лопается: чуть раздувается и исчезает
-          qx += Math.sin(k * 10) * 2.5
-          sc *= Math.min(1, k * 4) * (k > 0.85 ? 1 + (k - 0.85) * 3 : 1)
-          op = k < 0.85 ? 0.9 : ((1 - k) / 0.15) * 0.9
         } else {
           sc *= 1 - k * 0.6
           turn = k * 180
@@ -644,18 +702,43 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
   const padTop = earY - 28
   const arcW = L.eyeW / 2 + 1
   const stroke = clamp(L.eyeW * 0.41, 6, 10)
+  // голова и экран: прямоугольник со скруглёнными углами или трапеция; блик и отсвет повторяют их форму
+  const head = (p: React.SVGProps<SVGElement>) => (tapered
+    ? <path d={roundedPoly([[110 - topHalf, y0], [110 + topHalf, y0], [110 + L.w / 2, BOTTOM], [110 - L.w / 2, BOTTOM]], L.r)} {...p as React.SVGProps<SVGPathElement>} />
+    : <rect x={x0} y={y0} width={L.w} height={L.h} rx={L.r} {...p as React.SVGProps<SVGRectElement>} />)
+  const glass = (p: React.SVGProps<SVGElement>) => (tapered
+    ? <path d={roundedPoly([[110 - sTop, sy0], [110 + sTop, sy0], [110 + sBot, sy0 + sh], [110 - sBot, sy0 + sh]], L.screenR)} {...p as React.SVGProps<SVGPathElement>} />
+    : <rect x={x0 + bx} y={sy0} width={L.w - 2 * bx} height={sh} rx={L.screenR} {...p as React.SVGProps<SVGRectElement>} />)
 
   return (
-    <svg className={`robot ${mood} ${stand ? 'standing' : ''}`} viewBox={stand ? '0 -32 220 220' : '0 0 220 220'} role="img" aria-label="Vi">
+    <svg
+      className={`robot ${mood} ${stand ? 'standing' : ''}`} viewBox={stand ? '0 -32 220 220' : '0 0 220 220'} role="img" aria-label="Vi"
+      style={L.bulbColor ? { '--bulb': L.bulbColor } as React.CSSProperties : undefined}
+    >
       <defs>
         <linearGradient id={`${uid}-head`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={L.body[0]} />
-          <stop offset="1" stopColor={L.body[1]} />
+          <stop offset="0" style={{ stopColor: L.body[0] }} />
+          <stop offset="1" style={{ stopColor: L.body[1] }} />
         </linearGradient>
+        {/* блик: светлый край сверху, к середине головы сходит на нет */}
+        <linearGradient id={`${uid}-rim`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" style={{ stopOpacity: look?.rim ?? 'var(--bot-rim)' }} />
+          <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        {/* отсвет на стекле: из левого верхнего угла */}
+        <linearGradient id={`${uid}-sheen`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity={L.sheen} />
+          <stop offset="0.45" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        {/* свечение — размытый силуэт глаз, залитый цветом свечения; глаза поверх остаются белыми */}
         <filter id={`${uid}-glow`} x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          <feGaussianBlur in="SourceAlpha" stdDeviation="3.5" result="blur" />
+          <feFlood floodColor={L.glow} />
+          <feComposite in2="blur" operator="in" result="halo" />
+          <feMerge><feMergeNode in="halo" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
+        {/* блик — только внутри головы: обводка вдвое толще и обрезана по краю */}
+        <clipPath id={`${uid}-skull`}>{head({})}</clipPath>
         <clipPath id={`${uid}-brow`}>
           <path ref={brow} d={CLIP_BOX} clipRule="evenodd" />
         </clipPath>
@@ -666,18 +749,20 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
           <g ref={ants}>
             {G.antennas.map((a) => (
               <g key={a.x} transform={`rotate(${a.rot} ${a.x} ${by})`}>
-                <line x1={a.x} y1={by} x2={a.x} y2={by - L.antennaLen} stroke={L.trim} strokeWidth={L.antennaW} strokeLinecap="round" />
+                <line x1={a.x} y1={by} x2={a.x} y2={by - L.antennaLen} style={{ stroke: L.antennaColor || L.trim }} strokeWidth={L.antennaW} strokeLinecap="round" />
                 {/* думает — лампочка горит ровно, а от неё расходятся волны сигнала */}
                 {mood === 'thinking' && (
                   <g className="robot-signal">
                     {[0, 1, 2].map((i) => <circle key={i} cx={a.x} cy={G.bulbY} r={L.bulb} vectorEffect="non-scaling-stroke" />)}
                   </g>
                 )}
+                {/* колба под лампочкой: лампочка гаснет и мигает прозрачностью — сквозь неё видно тёмное стекло, а не фон */}
+                <circle cx={a.x} cy={G.bulbY} r={L.bulb} style={{ fill: L.trim }} />
                 <circle className="robot-bulb" cx={a.x} cy={G.bulbY} r={L.bulb} />
               </g>
             ))}
           </g>
-          <g ref={ears} fill={L.trim}>
+          <g ref={ears} style={{ fill: L.trim }}>
             {L.ears === 'bar' && [-1, 1].map((s) => (
               <rect key={s} x={110 + s * (edge + L.earOut - L.earW / 2) - L.earW / 2} y={earY - L.earH / 2} width={L.earW} height={L.earH} rx={L.earW / 2} />
             ))}
@@ -686,19 +771,17 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
               <>
                 <path
                   d={`M${110 - edge - 4} ${padTop + 6} C${110 - edge - 4} ${y0 - 40} ${110 + edge + 4} ${y0 - 40} ${110 + edge + 4} ${padTop + 6}`}
-                  fill="none" stroke={L.trim} strokeWidth="8" strokeLinecap="round"
+                  style={{ fill: 'none', stroke: L.trim }} strokeWidth="8" strokeLinecap="round"
                 />
                 {[-1, 1].map((s) => <rect key={s} x={110 + s * (edge + 4) - 12} y={padTop} width="24" height="56" rx="12" />)}
               </>
             )}
           </g>
-          {tapered
-            ? <path d={roundedPoly([[110 - topHalf, y0], [110 + topHalf, y0], [110 + L.w / 2, BOTTOM], [110 - L.w / 2, BOTTOM]], L.r)} fill={`url(#${uid}-head)`} />
-            : <rect x={x0} y={y0} width={L.w} height={L.h} rx={L.r} fill={`url(#${uid}-head)`} />}
+          {head({ fill: `url(#${uid}-head)` })}
+          {L.rim > 0 && head({ fill: 'none', stroke: `url(#${uid}-rim)`, strokeWidth: 3, clipPath: `url(#${uid}-skull)` })}
           <g ref={screen}>
-            {tapered
-              ? <path d={roundedPoly([[110 - sTop, sy0], [110 + sTop, sy0], [110 + sBot, sy0 + sh], [110 - sBot, sy0 + sh]], L.screenR)} fill={L.screen} />
-              : <rect x={x0 + bx} y={sy0} width={L.w - 2 * bx} height={sh} rx={L.screenR} fill={L.screen} />}
+            {glass({ style: { fill: L.screen } })}
+            {L.sheen > 0 && glass({ fill: `url(#${uid}-sheen)` })}
             {/* «💢» — когда разозлили */}
             <g ref={vein} opacity="0" fill="none" stroke="#ff4d4d" strokeWidth="2.8" strokeLinecap="round">
               <path d="M-2.5 -8Q-2.5 -2.5 -8 -2.5M2.5 -8Q2.5 -2.5 8 -2.5M-2.5 8Q-2.5 2.5 -8 2.5M2.5 8Q2.5 2.5 8 2.5" />
@@ -708,7 +791,7 @@ export function Robot({ mood, level, stand = false, gaze, push, onPet, fidget, l
             <g clipPath={`url(#${uid}-brow)`}>
               <g ref={lids}>
                 {shape === 'dizzy' ? (
-                  spirals.map((d) => <path key={d} className="robot-spiral" d={d} fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" />)
+                  spirals.map((d, k) => <path key={d} className={`robot-spiral ${k ? 'cw' : 'ccw'}`} d={d} fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" />)
                 ) : shape === 'ouch' ? (
                   // зажмурился от удара: > <
                   eyeX.map((cx, k) => {

@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { Evaluation } from '../lib/evaluate'
 import type { Account } from '../lib/settings'
-import { bankById, type BankId } from '../lib/banks'
 import { buildBills, type Bill } from '../lib/bills'
 import type { PlannedEvent } from '../lib/types'
 import type { ViCard, ViWidget } from '../lib/vi'
-import { addDays, compact, fmtDayShort, MONTHS_NOM, parseDate, pct, rub, rubK } from '../lib/format'
+import { addDays, compact, fmtDayShort, MONTHS_NOM, parseDate, pct, rub } from '../lib/format'
 import { load, save } from '../lib/store'
 import { CardStack, Row, type StackCard } from './CardStack'
 import { BankBadge } from './BankBadge'
@@ -19,9 +18,8 @@ export interface Focus {
 
 interface Props {
   bizId: string
-  /** Карточка «Бизнес»: содержимое и название — его видно в заголовке свёрнутой. */
+  /** Шапка сводки: какой бизнес и его статус; там же — переключить бизнес. */
   biz: React.ReactNode
-  bizName: string
   ev: Evaluation
   accounts: Account[]
   manual: PlannedEvent[]
@@ -29,20 +27,6 @@ interface Props {
   /** Открыть раздел в чате: Vi покажет его под ответом. */
   onShow: (w: ViWidget, label: string) => void
   onRemoveManual: (id: string) => void
-}
-
-/** Шкала «всего»: отрезок на каждый банк, длина — его доля, цвет — цвет банка. */
-function BankBar({ accounts }: { accounts: Account[] }) {
-  const byBank = new Map<BankId, number>()
-  for (const a of accounts) if (a.balance > 0) byBank.set(a.bank, (byBank.get(a.bank) ?? 0) + a.balance)
-  const sum = [...byBank.values()].reduce((s, v) => s + v, 0)
-  if (!sum) return null
-  const parts = [...byBank].map(([id, v]) => ({ bank: bankById(id), v }))
-  return (
-    <span className="bank-bar" role="img" aria-label={parts.map((p) => `${p.bank.name} — ${pct(p.v / sum)}`).join(', ')}>
-      {parts.map((p) => <i key={p.bank.id} style={{ flexGrow: p.v, background: p.bank.bg }} title={`${p.bank.name} — ${rub(p.v)}`} />)}
-    </span>
-  )
 }
 
 /**
@@ -110,11 +94,11 @@ function PayMonths({ months, bills, today, paid, open, onOpen, onToggle }: {
 }
 
 /**
- * Правая колонка: бизнес, счета, платежи по месяцам — карточками со строками.
+ * Правая колонка: сверху — какой бизнес и хватит ли денег, ниже счета и платежи по месяцам — карточками со строками.
  * Когда Vi отвечает про что-то из этого, карточка раскрывается и подсвечивается;
  * «Изменения» появляются, когда есть свои события, «Точность» — когда о ней спросили.
  */
-export function InfoPanel({ bizId, biz, bizName, ev, accounts, manual, focus, onShow, onRemoveManual }: Props) {
+export function InfoPanel({ bizId, biz, ev, accounts, manual, focus, onShow, onRemoveManual }: Props) {
   const [askedTrust, setAskedTrust] = useState(false)
   useEffect(() => { if (focus?.card === 'trust') setAskedTrust(true) }, [focus])
   // какие платежи месяца человек отметил оплаченными
@@ -133,28 +117,26 @@ export function InfoPanel({ bizId, biz, bizName, ev, accounts, manual, focus, on
   const bt = ev.data.backtest
   const more = (label: string, fn: () => void) => <button className="link info-more" onClick={fn}>{label} <Icon name="arrow" size={14} /></button>
 
+  // итог по счетам — в заголовке, как на билете: подпись слева, значение справа; копейки — на странице счёта
+  const total = <span className="info-total num">{rub(ev.total)}</span>
   const cards: StackCard[] = [
-    { id: 'biz', title: 'Бизнес', peek: bizName, body: biz },
     {
       id: 'money',
       title: 'Счета',
+      head: total,
       peek: <span className="num">{rub(ev.total)}</span>,
       body: (
         <>
-          <Row icon="bank" end={<b className="num">{rub(ev.total)}</b>}>
-            Всего
-            <BankBar accounts={accounts} />
-          </Row>
           {accounts.map((a) => (
             <Row
               key={a.id} lead={<BankBadge bank={a.bank} size={22} round />} onClick={() => onShow(`account:${a.id}`, `Счёт «${a.name}»`)}
-              end={<span className={`num ${a.inForecast ? '' : 'muted'}`}>{rubK(a.balance)}</span>}
+              end={<span className={`num ${a.inForecast ? '' : 'muted'}`}>{rub(a.balance)}</span>}
             >
               {a.name}{a.last4 ? ` •${a.last4}` : ''}
               {!a.inForecast && <small>не учитывается в прогнозе</small>}
             </Row>
           ))}
-          <Row icon="plus" onClick={() => onShow('newAccount', 'Новый счёт')}>Новый счёт</Row>
+          <Row icon="plus" quiet onClick={() => onShow('newAccount', 'Новый счёт')}>Новый счёт</Row>
         </>
       ),
     },
@@ -226,5 +208,5 @@ export function InfoPanel({ bizId, biz, bizName, ev, accounts, manual, focus, on
     })
   }
 
-  return <CardStack cards={cards} hot={focus ? { id: focus.card, n: focus.n } : null} />
+  return <CardStack top={biz} cards={cards} hot={focus ? { id: focus.card, n: focus.n } : null} />
 }

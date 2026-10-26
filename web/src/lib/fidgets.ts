@@ -1,13 +1,13 @@
 /**
  * Выходки Vi от скуки: когда ничего не происходит, он время от времени что-нибудь выкидывает.
  * Каждая выходка — поза как функция времени (куда смотрят глаза, наклон, веки…) и толчки
- * в нужные моменты (подпрыгнуть, дёрнуть антенной, выпустить ноты). Сам кадр рисует Robot:
+ * в нужные моменты (подпрыгнуть, дёрнуть антенной, выпустить «Z» или искры). Сам кадр рисует Robot:
  * поза только сдвигает цели его пружин, поэтому выходка начинается и обрывается плавно.
  */
 
-export type Fidget = 'wink' | 'hum' | 'hiccup' | 'doze' | 'sneeze' | 'fly' | 'glitch'
-/** что вылетает: «Z», нота, пузырёк, искра */
-export type Bit = 'z' | 'note' | 'bubble' | 'spark'
+export type Fidget = 'wink' | 'doze' | 'sneeze' | 'fly' | 'glitch'
+/** что вылетает: «Z», искра */
+export type Bit = 'z' | 'spark'
 
 /** Поза в момент выходки; чего не задали — как обычно. */
 export interface Pose {
@@ -96,7 +96,6 @@ const lookAt = (p: [number, number], face: [number, number]): [number, number] =
   return [(dx / d) * 13 * k, (dy / d) * 10 * k]
 }
 
-const HICS = [200, 1250, 1850]
 const WAKE = 4300
 const ACHOO = 1400
 const GLITCH = ['var(--red)', 'var(--blue)', 'var(--yellow)', 'var(--green)']
@@ -105,7 +104,7 @@ export const FIDGETS: Record<Fidget, Spec> = {
   // смотрит на вас и подмигивает
   wink: {
     ms: 1300,
-    weight: 3,
+    weight: 2.2,
     beats: (s) => [{ at: 320, ant: s * 170 }],
     pose: (f, { s }) => {
       const shut = hump(f, 260, 340, 640, 780)
@@ -119,48 +118,16 @@ export const FIDGETS: Record<Fidget, Spec> = {
     },
   },
 
-  // жмурится «^ ^», качается в такт, вылетают ноты
-  hum: {
-    ms: 4300,
-    weight: 3,
-    beats: (s) => [300, 1000, 1700, 2400, 3100].map((at, i) => ({ at, bit: 'note' as const, dir: i % 2 ? -s : s, size: 0.85 + (i % 3) * 0.15 })),
-    pose: (f) => {
-      const on = hump(f, 0, 400, 3500, 4100)
-      const sway = Math.sin((f / 1400) * Math.PI * 2)
-      return {
-        shape: f < 3900 ? 'happy' : undefined,
-        lean: sway * 7 * on,
-        squash: Math.sin((f / 700) * Math.PI * 2) * 0.022 * on,
-        look: [sway * 5 * on, -5 * on],
-      }
-    },
-  },
-
-  // три «ик!» с пузырьком — и неловко отводит глаза
-  hiccup: {
-    ms: 3100,
-    weight: 2.5,
-    beats: (s) => HICS.map((at, i) => ({ at, hop: 150, squash: 3.2, ant: (i % 2 ? -1 : 1) * s * 240, bit: 'bubble' as const, dir: i % 2 ? -s : s })),
-    pose: (f, { s }) => {
-      const kick = HICS.reduce((m, at) => Math.max(m, decay(f, at, 110)), 0)
-      const after = ramp(f, 2250, 2500)
-      return {
-        pop: 1 + kick * 0.28,
-        look: [s * 10 * after, (1 - after) * (-3 - 6 * kick) + after * 4],
-      }
-    },
-  },
-
-  // клюёт носом: веки тяжелеют, «Z-z-z», голова клонится — вздрагивает и озирается
+  // клюёт носом: веки тяжелеют (один глаз сдаётся чуть позже), «Z-z-z», голова чуть клонится — вздрагивает и озирается
   doze: {
     ms: 5600,
-    weight: 2,
+    weight: 1.2,
     wake: WAKE,
     beats: (s) => [
       { at: 2100, bit: 'z', size: 0.7, dir: s },
-      { at: 2750, rot: s * 70, bit: 'z', size: 0.95, dir: s },
+      { at: 2750, rot: s * 22, bit: 'z', size: 0.95, dir: s },
       { at: 3450, bit: 'z', size: 1.2, dir: s },
-      { at: WAKE, hop: 200, rot: -s * 120, ant: s * 420 },
+      { at: WAKE, hop: 200, rot: -s * 80, ant: s * 420 },
     ],
     pose: (f, { s }) => {
       if (f < WAKE) {
@@ -168,10 +135,13 @@ export const FIDGETS: Record<Fidget, Spec> = {
         // ещё борется: раз разлепляет глаза
         const fight = 0.4 * hump(f, 950, 1050, 1150, 1450)
         const deep = ramp(f, 2000, 2400)
+        // один глаз ещё держится, другой уже слипается
+        const lag = 1 + 0.3 * hump(f, 400, 900, 1500, 2100)
         return {
           lid: Math.max(0.07, 1 - 0.93 * sleep + fight),
+          eye: s < 0 ? [lag, 1] : [1, lag],
           look: [0, 7 * sleep],
-          lean: s * (2 + 8 * ramp(f, 700, 3800)),
+          lean: s * (1 + 2.5 * ramp(f, 700, 3800)),
           squash: -0.03 * sleep + Math.sin((f / 1700) * Math.PI * 2) * 0.016 * deep,
           glow: 1 - 0.65 * sleep,
         }
@@ -203,9 +173,10 @@ export const FIDGETS: Record<Fidget, Spec> = {
       }
       const u = f - ACHOO
       return {
-        shape: u < 330 ? 'ouch' : u < 1050 ? 'happy' : undefined,
+        shape: u < 330 ? 'ouch' : undefined,
         bulb: u < 220 ? 'var(--yellow)' : undefined,
-        look: [0, 0],
+        lid: 1 - 0.15 * hump(u, 330, 450, 700, 1000),
+        look: [-s * 5 * hump(u, 450, 600, 950, 1250), 2 * hump(u, 450, 600, 950, 1250)],
       }
     },
   },

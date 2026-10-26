@@ -22,6 +22,8 @@ export function Wave({ level, active }: Props) {
     if (!c || !ctx) return
     let bars: number[] = []
     let raf = 0
+    // цвета — из темы: в тёмной столбики светлые
+    const css = getComputedStyle(c)
     let last = 0
     const frame = (t: number) => {
       const dpr = window.devicePixelRatio || 1
@@ -40,7 +42,7 @@ export function Wave({ level, active }: Props) {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, w, H)
-      ctx.fillStyle = activeRef.current ? '#121212' : '#cfcec7'
+      ctx.fillStyle = css.getPropertyValue(activeRef.current ? '--ink' : '--line-2').trim() || '#888'
       const x0 = w - n * (BAR + GAP) + GAP / 2
       bars.forEach((v, i) => {
         const h = Math.max(BAR, v * H)

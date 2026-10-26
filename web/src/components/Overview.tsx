@@ -2,7 +2,6 @@ import type { Evaluation } from '../lib/evaluate'
 import type { Bill } from '../lib/bills'
 import { compact } from '../lib/format'
 import { Bills } from './Bills'
-import { Icon } from './Icon'
 
 export interface OverviewItem {
   id: string
@@ -22,15 +21,14 @@ export function Overview({ items }: { items: OverviewItem[] }) {
   return (
     <>
       <h1 className="page-title">Все бизнесы</h1>
-      <div className={`status ${worst ? worst.ev.status.tone : 'ok'}`}>
-        <span className="status-ico">
-          <Icon name={!worst ? 'check' : worst.ev.status.tone === 'risk' ? 'warn' : 'cross'} size={18} stroke={2.4} />
-        </span>
-        <div>
+      {/* где проблема — так же, как статус на прогнозе: точка цвета и одна фраза */}
+      <section className="risk-card">
+        <div className="risk-head">
+          <span className={`tone-dot ${worst ? worst.ev.status.tone : 'ok'}`} />
           <b>{worst ? `${worst.name}: ${worst.ev.status.title.charAt(0).toLowerCase()}${worst.ev.status.title.slice(1)}` : 'Во всех бизнесах на платежи хватает'}</b>
-          <span>{worst ? worst.ev.status.sub : `Свободно ${compact(free)}\u00a0₽ на всех счетах.`}</span>
         </div>
-      </div>
+        <p className="risk-note">{worst ? worst.ev.status.sub : `Свободно ${compact(free)}\u00a0₽ на всех счетах.`}</p>
+      </section>
       <Bills bills={bills} title="Ближайшие платежи" />
     </>
   )

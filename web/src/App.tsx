@@ -265,7 +265,7 @@ export default function App() {
   registerNames(shown.flatMap((id) => [...companies[id].clients.map((c) => c.name), ...companies[id].events.map((e) => e.cp)]))
 
   const bizItems = bizIds.map((id) => ({
-    id, name: settingsOf(id).name, industry: settingsOf(id).industry, tone: evals[id].status.tone,
+    id, name: settingsOf(id).name, industry: settingsOf(id).industry, tone: evals[id].status.tone, status: evals[id].status.title,
   }))
 
   const toggle = (id: string) => {
@@ -437,25 +437,20 @@ export default function App() {
       items={bizItems} current={cur} onAdd={() => go('newBusiness')}
       // открыт раздел — при смене бизнеса остаёмся в нём, только уже про другой бизнес
       onSelect={(id) => { select(id); if (isSection(page) && id !== ALL) go(page) }}
-      edit={settings ? {
-        form: settings.form, regime: settings.regime,
-        onRename: (name) => saveSettings(cur, { ...settings, name }),
-        onRegime: (regime) => saveSettings(cur, { ...settings, regime }),
-      } : undefined}
+      edit={settings ? { onRename: (name) => saveSettings(cur, { ...settings, name }) } : undefined}
     />
   )
 
   const info = ev && settings ? (
     <InfoPanel
-      key={cur} bizId={cur} biz={bizCard} bizName={settings.name} ev={ev} accounts={settings.accounts} manual={manualOf(cur)} focus={focus}
+      key={cur} bizId={cur} biz={bizCard} ev={ev} accounts={settings.accounts} manual={manualOf(cur)} focus={focus}
       onShow={show} onRemoveManual={removeManual}
     />
   ) : (
-    <CardStack cards={[
-      { id: 'biz', title: 'Бизнес', body: bizCard },
+    <CardStack top={bizCard} cards={[
       {
         id: 'all',
-        title: 'Все бизнесы',
+        title: 'Итого',
         body: (
           <>
             <Row icon="bank" end={<b className="num">{compactRub(bizIds.reduce((s, id) => s + evals[id].total, 0))}</b>}>Всего</Row>

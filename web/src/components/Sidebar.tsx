@@ -13,6 +13,8 @@ export interface BizItem {
   name: string
   industry: string
   tone: 'ok' | 'risk' | 'short'
+  /** Статус одной строкой: «23 октября не хватит на зарплату». */
+  status: string
 }
 
 /** Чат с Vi: заголовок — первый вопрос (или как переименовали), время — последнее сообщение. */
@@ -281,6 +283,8 @@ export function Sidebar({ items, current, chats, open, section, onSection, pinne
         </div>
         {items.map((b) => {
           const own = chats[b.id] ?? []
+          // пустую группу не показываем — только пока тащат чат: тогда в неё можно его бросить
+          if (!own.length && !(drag && drag.g !== b.id)) return null
           const isOpen = !closed.includes(b.id)
           return (
             <div key={b.id} className={`nav-group ${b.id === current ? 'cur' : ''} ${drop === b.id ? 'drop' : ''}`} {...target(b.id)}>
@@ -293,7 +297,7 @@ export function Sidebar({ items, current, chats, open, section, onSection, pinne
                   <Icon name="plus" size={16} stroke={2} />
                 </button>
               </div>
-              {isOpen && (own.length ? page(b.id, own) : <p className="nav-empty">Нет чатов</p>)}
+              {isOpen && (own.length ? page(b.id, own) : <p className="nav-drop-hint">Сюда — в эту группу</p>)}
             </div>
           )
         })}

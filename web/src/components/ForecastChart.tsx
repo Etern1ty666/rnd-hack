@@ -228,7 +228,7 @@ export function ForecastChart({ asOf, balanceNow, history, sim, compare, horizon
                   {s.evs.length > 1 && (
                     <g transform="translate(17,-5)">
                       <circle cx={5} cy={5} r={7} fill="var(--ink)" />
-                      <text x={5} y={8.5} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">{s.evs.length}</text>
+                      <text x={5} y={8.5} textAnchor="middle" fontSize={9} fontWeight={700} fill="var(--on-ink)">{s.evs.length}</text>
                     </g>
                   )}
                 </g>

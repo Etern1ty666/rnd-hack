@@ -76,9 +76,10 @@ export function OpsPage({ data }: { data: CompanyData }) {
   return (
     <>
       <h1 className="page-title">Операции</h1>
+      {/* одна строка — что разобрали, вторая — что нашли; подробности о статьях — в таблице ниже */}
       <p className="page-sub">
-        Разобрали {q.rows.toLocaleString('ru-RU')} {plural(q.rows, 'операцию', 'операции', 'операций')} за {span} {plural(span, 'месяц', 'месяца', 'месяцев')} — с {withYear(data.company.firstDate)} по {withYear(data.asOf)}.
-        Каждую разложили по статьям: по назначению платежа и контрагенту. {notes.join(', ').replace(/^./, (c) => c.toUpperCase())}.
+        {q.rows.toLocaleString('ru-RU')} {plural(q.rows, 'операция', 'операции', 'операций')} за {span} {plural(span, 'месяц', 'месяца', 'месяцев')}, с {withYear(data.company.firstDate)} по {withYear(data.asOf)} — разложены по статьям.
+        {' '}{notes.join(', ').replace(/^./, (c) => c.toUpperCase())}.
       </p>
 
       <OpsDonut data={data} />

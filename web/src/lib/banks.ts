@@ -39,8 +39,9 @@ export const BANKS: Bank[] = [
   { id: 'wb', name: 'WB Банк', short: 'W', bg: '#cb11ab', fg: '#ffffff', logo: wbLogo },
   { id: 'raif', name: 'Райффайзен', short: 'R', bg: '#fff200', fg: '#111111', logo: raifLogo },
   { id: 'sovcom', name: 'Совкомбанк', short: 'СК', bg: '#e8473c', fg: '#ffffff', logo: sovcomLogo },
-  { id: 'cash', name: 'Наличные', short: '₽', bg: '#121212', fg: '#ffffff' },
-  { id: 'other', name: 'Другой банк', short: '?', bg: '#cfcec7', fg: '#121212' },
+  // без логотипа — цветом темы: в тёмной касса светлая, иначе чёрный кружок пропадает на тёмной карточке
+  { id: 'cash', name: 'Наличные', short: '₽', bg: 'var(--ink)', fg: 'var(--on-ink)' },
+  { id: 'other', name: 'Другой банк', short: '?', bg: 'var(--line-2)', fg: 'var(--ink)' },
 ]
 
 export const bankById = (id: BankId) => BANKS.find((b) => b.id === id) ?? BANKS[BANKS.length - 1]

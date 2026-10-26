@@ -49,9 +49,8 @@ function every(dates: string[], single = 'month'): string {
 
 const sum = (list: { amount: number }[]) => list.reduce((s, e) => s + Math.abs(e.amount), 0)
 
-function Group({ title, source, total, sign, note, children }: {
+function Group({ title, total, sign, note, children }: {
   title: string
-  source: string
   total?: number
   sign: 1 | -1
   note: string
@@ -63,7 +62,7 @@ function Group({ title, source, total, sign, note, children }: {
         <h2>{title}</h2>
         {total != null && total > 0 && <b className={`num ${sign > 0 ? 'chg-in' : ''}`}>{sign > 0 ? '+' : '−'}{compact(total)}&nbsp;₽</b>}
       </div>
-      <p className="pay-group-note"><span className="src-chip">{source}</span>{note}</p>
+      <p className="pay-group-note">{note}</p>
       {children}
     </section>
   )
@@ -111,9 +110,9 @@ export function PaymentsPage({ ev, regime, onAdd, onQr }: Props) {
   return (
     <>
       <h1 className="page-title">Платежи</h1>
-      <p className="page-sub">Что будет в ближайшие {H} дней, хотя в выписке этого ещё нет. Всё это уже учтено в прогнозе.</p>
+      <p className="page-sub">Что спишется и придёт в ближайшие {H} дней. Всё это уже в прогнозе.</p>
 
-      <Group title="Налоги" source="налоговый календарь" total={sum(taxes)} sign={-1} note={`Посчитали по выписке и вашей системе налогов — ${regime}.`}>
+      <Group title="Налоги" total={sum(taxes)} sign={-1} note={`По налоговому календарю · ${regime}`}>
         {taxes.length ? taxes.map((e) => (
           <Row key={e.id} icon="tax" end={end(e.amount, fmtDayShort(e.date))}>
             {e.title.startsWith('Налог: ') ? 'Налог' : e.title}
@@ -122,7 +121,7 @@ export function PaymentsPage({ ev, regime, onAdd, onQr }: Props) {
         )) : <p className="pay-empty">В ближайшие {H} дней налогов нет.</p>}
       </Group>
 
-      <Group title="Выставленные счета" source="счета из 1С" total={sum(invoices)} sign={1} note="Когда заплатят — по тому, как этот клиент платил раньше.">
+      <Group title="Выставленные счета" total={sum(invoices)} sign={1} note="Из 1С · когда заплатят — по тому, как клиент платил раньше">
         {invoices.length ? invoices.map((e) => {
           const c = e.clientId ? clients.get(e.clientId) : undefined
           const late = (e.overdueDays ?? 0) > 0
@@ -138,20 +137,22 @@ export function PaymentsPage({ ev, regime, onAdd, onQr }: Props) {
           )
         }) : (
           <>
-            <p className="pay-empty">Неоплаченных счетов из 1С нет. Пришёл счёт от поставщика — сфотографируйте QR-код, и он встанет в прогноз.</p>
+            <p className="pay-empty">Неоплаченных счетов нет. Пришёл счёт от поставщика — отсканируйте QR-код, и он встанет в прогноз.</p>
             <button className="link" onClick={onQr}><Icon name="qr" size={16} /> Добавить счёт по QR</button>
           </>
         )}
       </Group>
 
-      <Group title="Регулярные платежи" source="найдены в выписке" total={outSoon} sign={-1} note="Повторялись хотя бы 4 месяца из последних 6 — значит, будут и дальше.">
+      <Group title="Регулярные платежи" total={outSoon} sign={-1} note="Из выписки · повторялись 4 месяца из последних 6">
         {regularOut.map((s) => {
           const e = s.first
           const salary = e.cat === 'salary'
+          // три строки «Свет, вода, связь» подряд не различить — такие называем получателем, статью пишем ниже
+          const twin = !salary && regularOut.filter((x) => x.first.cat === e.cat).length > 1
           return (
             <Row key={s.key} icon={CATS[e.cat].icon} end={end(e.amount, fmtDayShort(e.date))}>
-              {salary ? e.title.replace(': ', ' — ') : CATS[e.cat].label}
-              <small>{every(s.dates)}{salary ? '' : ` · ${shortName(e.cp)}`}</small>
+              {salary ? e.title.replace(': ', ' — ') : twin ? shortName(e.cp) : CATS[e.cat].label}
+              <small>{twin ? `${CATS[e.cat].label} · ` : ''}{every(s.dates)}{salary || twin ? '' : ` · ${shortName(e.cp)}`}</small>
             </Row>
           )
         })}
@@ -163,7 +164,7 @@ export function PaymentsPage({ ev, regime, onAdd, onQr }: Props) {
         ))}
       </Group>
 
-      <Group title="Регулярные поступления" source="найдены в выписке" total={inSoon} sign={1} note="Выручка — по дням недели за последние 8 недель, оплаты клиентов — по их ритму.">
+      <Group title="Регулярные поступления" total={inSoon} sign={1} note="Из выписки · выручка по дням недели, оплаты клиентов — по их ритму">
         {revenue.map((r) => (
           <Row key={r.cat} icon={CATS[r.cat].icon} end={end(r.daily, 'в день')}>
             {CATS[r.cat].label}
@@ -180,7 +181,7 @@ export function PaymentsPage({ ev, regime, onAdd, onQr }: Props) {
       </Group>
 
       {manual.length > 0 && (
-        <Group title="Добавили вы" source="вручную" sign={-1} note="Фразой в чате, по полям или по QR-коду со счёта.">
+        <Group title="Добавили вы" sign={-1} note="Фразой в чате, по полям или по QR-коду">
           {manual.map((e) => (
             <Row key={e.id} icon={e.amount > 0 ? 'plus' : 'minus'} end={end(e.amount, fmtDayShort(e.date))}>
               {e.title}

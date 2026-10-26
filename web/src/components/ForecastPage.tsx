@@ -40,11 +40,25 @@ export function ForecastPage({ ev, applied, onToggle, onShow }: Props) {
   const H = Math.min(HORIZON, sim.days.length)
   const bt = data.backtest
 
-  const nums: [string, string][] = now.status === 'gap'
-    ? [['Когда', fmtDay(now.day!)], ['Не хватит', rub(now.shortfall)], ['Вероятность', chance(now.prob)]]
+  // как на билете: подпись мелко, значение крупно, пояснение — мелко под ним.
+  // «Нужно найти» — сколько не хватит в самый тонкий день, а не в первый день разрыва: поэтому с датой
+  const nums: { k: string; v: string; hint?: string; red?: boolean }[] = now.status === 'gap'
+    ? [
+      { k: 'Деньги кончатся', v: fmtDay(now.day!) },
+      { k: 'Нужно найти', v: rub(now.shortfall), hint: now.minDay !== now.day ? `к ${fmtDay(now.minDay)}` : undefined, red: true },
+      { k: 'Вероятность', v: chance(now.prob) },
+    ]
     : now.status === 'risk'
-      ? [['Когда может не хватить', fmtDay(now.day!)], ['Не хватит до', rub(now.shortfall)], ['Вероятность', chance(now.prob)]]
-      : [['Самый тонкий день', fmtDay(now.minDay)], ['Останется', rub(now.minValue)], ['Вероятность разрыва', chance(now.prob)]]
+      ? [
+        { k: 'Может не хватить', v: fmtDay(now.day!) },
+        { k: 'Не хватит до', v: rub(now.shortfall) },
+        { k: 'Вероятность', v: chance(now.prob) },
+      ]
+      : [
+        { k: 'Самый тонкий день', v: fmtDay(now.minDay) },
+        { k: 'Останется', v: rub(now.minValue) },
+        { k: 'Риск разрыва', v: chance(now.prob) },
+      ]
 
   const rows = sim.days.slice(0, H).map((d, i) => {
     const evs = sim.events.filter((e) => e.date === d && Math.abs(e.amount) >= ev.minEvent / 2)
@@ -57,17 +71,17 @@ export function ForecastPage({ ev, applied, onToggle, onShow }: Props) {
       <h1 className="page-title">Прогноз</h1>
       <p className="page-sub">Сколько денег будет на счетах каждый день — на {H} дней вперёд</p>
 
-      <section className={`risk-card ${status.tone}`}>
+      <section className="risk-card">
         <div className="risk-head">
           <span className={`tone-dot ${status.tone}`} />
           <b>{status.title}</b>
         </div>
         <div className="risk-nums">
-          {nums.map(([k, v]) => (
-            <div key={k}><span>{k}</span><b className="num">{v}</b></div>
+          {nums.map(({ k, v, hint, red }) => (
+            <div key={k}><span>{k}</span><b className={`num ${red ? 'red' : ''}`}>{v}</b>{hint && <small>{hint}</small>}</div>
           ))}
         </div>
-        <p className="risk-note">Вероятность — шанс, что в самый опасный день денег окажется меньше нуля: выручка гуляет, а клиенты задерживают оплату.</p>
+        <p className="risk-note">Вероятность — шанс уйти в минус в самый тонкий день: выручка гуляет, клиенты задерживают оплату.</p>
       </section>
 
       {ev.actions.length > 0 && (

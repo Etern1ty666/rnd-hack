@@ -13,6 +13,8 @@ export interface StackCard {
 }
 
 interface Props {
+  /** Шапка над карточками — какой бизнес: не сворачивается и не перетаскивается. */
+  top?: React.ReactNode
   cards: StackCard[]
   /** Карточка, о которой только что сказал Vi: раскрываем, показываем и подсвечиваем. */
   hot?: { id: string; n: number } | null
@@ -25,7 +27,7 @@ const HOT_MS = 2600
  * Заголовок сворачивает карточку. При наведении — ручка ⠿: за неё карточку можно перетащить
  * (или стрелками с клавиатуры), соседи плавно расступаются. Порядок и свёрнутые запоминаем.
  */
-export function CardStack({ cards, hot }: Props) {
+export function CardStack({ top, cards, hot }: Props) {
   const [order, setOrder] = useState<string[]>(() => load('panel:order', []))
   const [closed, setClosed] = useState<string[]>(() => load('panel:closed', []))
   useEffect(() => save('panel:order', order), [order])
@@ -116,6 +118,7 @@ export function CardStack({ cards, hot }: Props) {
 
   return (
     <div className="info" ref={box}>
+      {top && <section className="info-card info-top">{top}</section>}
       {sorted.map((c) => {
         const open = !closed.includes(c.id)
         return (
@@ -145,14 +148,15 @@ export function CardStack({ cards, hot }: Props) {
   )
 }
 
-/** Строка карточки: иконка, текст, справа — значение или действие. Без подложки. */
-export function Row({ icon, lead, children, end, onClick, on }: {
+/** Строка карточки: иконка, текст, справа — значение или действие. Без подложки; тихая — серым, пока не навели. */
+export function Row({ icon, lead, children, end, onClick, on, quiet }: {
   icon?: IconName
   lead?: React.ReactNode
   children: React.ReactNode
   end?: React.ReactNode
   onClick?: () => void
   on?: boolean
+  quiet?: boolean
 }) {
   const inner = (
     <>
@@ -162,6 +166,6 @@ export function Row({ icon, lead, children, end, onClick, on }: {
     </>
   )
   return onClick
-    ? <button className={`row row-btn ${on ? 'on' : ''}`} onClick={onClick}>{inner}</button>
+    ? <button className={`row row-btn ${on ? 'on' : ''} ${quiet ? 'row-quiet' : ''}`} onClick={onClick}>{inner}</button>
     : <div className="row">{inner}</div>
 }
