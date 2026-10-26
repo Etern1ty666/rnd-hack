@@ -532,8 +532,8 @@ input, select, textarea { background-color: transparent; }
 .nav-scroll.fade-top { mask-image: linear-gradient(to bottom, transparent, #000 18px); }
 .nav-scroll.fade-bottom { mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
 .nav-scroll.fade-top.fade-bottom { mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 calc(100% - 24px), transparent); }
-/* переписка и разделы уходят под строку ввода плавно: робот стоит поверх растворившегося края и не закрывает суммы */
-.center-scroll { mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 72px), transparent); }
+/* сверху переписка уходит под край плавно; над строкой ввода — без размытия */
+.center-scroll { mask-image: linear-gradient(to bottom, transparent, #000 12px); }
 
 /* меню: «Новый чат» без подложки, три раздела и история чатов */
 .nav { height: 100%; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
