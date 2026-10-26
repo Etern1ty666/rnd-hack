@@ -367,59 +367,60 @@ export function ViChat(props: Props) {
             )}
           </div>
         )}
-      </div>
 
-      <div className="vi-dockbar">
-        <ViBot ev={ev} mood={mood} gaze={gaze} />
-        {/* одна строка: «+» слева, текст, справа микрофон — или «отправить», когда что-то написано */}
-        <form className="vi-composer" onSubmit={(e) => { e.preventDefault(); send(input) }}>
-          {/* приложенный файл — над текстом; отправится вместе с сообщением */}
-          {file && (
-            <div className="vi-attach">
-              <span className="vi-file">
-                <Icon name="clip" size={15} />
-                <span className="vi-file-name">{file.name}</span>
-                <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" title="Убрать файл"><Icon name="cross" size={14} stroke={2} /></button>
-              </span>
-            </div>
-          )}
-          <div className="vi-plus" ref={plusBox}>
-            <button type="button" className={`vi-tool ${plus ? 'on' : ''}`} onClick={() => setPlus(!plus)} aria-label="Добавить" aria-expanded={plus} aria-haspopup="menu">
-              <Icon name="plus" size={22} />
-            </button>
-            {plus && (
-              <PlusMenu
-                tools={TOOLS}
-                onAttach={() => { setPlus(false); picker.current?.click() }}
-                onSheet={(s) => { setPlus(false); onSheet(s) }}
-                onShow={show}
-              />
+        {/* строка ввода — в конце прокрутки и прилипает к низу: страница уходит под неё, а не обрывается над ней */}
+        <div className="vi-dockbar">
+          <ViBot ev={ev} mood={mood} gaze={gaze} />
+          {/* одна строка: «+» слева, текст, справа микрофон — или «отправить», когда что-то написано */}
+          <form className="vi-composer" onSubmit={(e) => { e.preventDefault(); send(input) }}>
+            {/* приложенный файл — над текстом; отправится вместе с сообщением */}
+            {file && (
+              <div className="vi-attach">
+                <span className="vi-file">
+                  <Icon name="clip" size={15} />
+                  <span className="vi-file-name">{file.name}</span>
+                  <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" title="Убрать файл"><Icon name="cross" size={14} stroke={2} /></button>
+                </span>
+              </div>
             )}
-            <input
-              ref={picker} type="file" accept="image/*,.txt" hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) setFile(f)
-                e.target.value = ''
-                field.current?.focus()
+            <div className="vi-plus" ref={plusBox}>
+              <button type="button" className={`vi-tool ${plus ? 'on' : ''}`} onClick={() => setPlus(!plus)} aria-label="Добавить" aria-expanded={plus} aria-haspopup="menu">
+                <Icon name="plus" size={22} />
+              </button>
+              {plus && (
+                <PlusMenu
+                  tools={TOOLS}
+                  onAttach={() => { setPlus(false); picker.current?.click() }}
+                  onSheet={(s) => { setPlus(false); onSheet(s) }}
+                  onShow={show}
+                />
+              )}
+              <input
+                ref={picker} type="file" accept="image/*,.txt" hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) setFile(f)
+                  e.target.value = ''
+                  field.current?.focus()
+                }}
+              />
+            </div>
+            <textarea
+              ref={field} rows={1} value={input} autoFocus={roomy}
+              placeholder={file ? 'Подпись, например «оплатить 30-го»' : roomy ? 'Спросите Vi или запишите платёж' : 'Спросите Vi'} aria-label="Сообщение для Vi"
+              onChange={(e) => setInput(e.target.value)}
+              onFocus={look} onSelect={look} onScroll={look} onBlur={() => { gaze.current = null }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) }
               }}
             />
-          </div>
-          <textarea
-            ref={field} rows={1} value={input} autoFocus={roomy}
-            placeholder={file ? 'Подпись, например «оплатить 30-го»' : roomy ? 'Спросите Vi или запишите платёж' : 'Спросите Vi'} aria-label="Сообщение для Vi"
-            onChange={(e) => setInput(e.target.value)}
-            onFocus={look} onSelect={look} onScroll={look} onBlur={() => { gaze.current = null }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) }
-            }}
-          />
-          {input.trim() || file ? (
-            <button type="submit" className="vi-send" disabled={pending != null} aria-label="Отправить"><Icon name="up" size={18} stroke={2.2} /></button>
-          ) : (
-            <button type="button" className="vi-tool" onClick={() => setMode('voice')} aria-label="Сказать голосом" title="Сказать голосом"><Icon name="mic" size={22} /></button>
-          )}
-        </form>
+            {input.trim() || file ? (
+              <button type="submit" className="vi-send" disabled={pending != null} aria-label="Отправить"><Icon name="up" size={18} stroke={2.2} /></button>
+            ) : (
+              <button type="button" className="vi-tool" onClick={() => setMode('voice')} aria-label="Сказать голосом" title="Сказать голосом"><Icon name="mic" size={22} /></button>
+            )}
+          </form>
+        </div>
       </div>
     </section>
   )
